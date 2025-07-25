@@ -5,6 +5,8 @@ import base64
 from io import BytesIO
 from google import genai
 import json
+import os
+
 
 st.set_page_config(layout="wide")
 
@@ -13,11 +15,11 @@ st.logo("logo.png")
 st.title("EcoLMM for Image description")
 
 # Initialize session state for API keys if not exists
-if "openai_api_key" not in st.session_state:
-    st.session_state.openai_api_key = ""
+if "openai_api_key" not in st.session_state: 
+    st.session_state.openai_api_key = os.getenv("key_api_gpt") #the keys are envoriment variables
 
 if "gemini_api_key" not in st.session_state:
-    st.session_state.gemini_api_key = ""
+    st.session_state.gemini_api_key =  os.getenv("key_api_gemini")
 
 if "selected_model" not in st.session_state:
     st.session_state.selected_model = ""
@@ -27,21 +29,25 @@ if "species_list" not in st.session_state:
 
 # Sidebar configuration
 with st.sidebar:
-    #st.title("Configuration")
+    st.title("Configuration")
     
-    openai_api_key = st.text_input(
-        "OpenAI API Key",
-        type="password",
-        help="Enter your OpenAI API key here",
-    )
-    st.session_state.openai_api_key = openai_api_key
+    # Information about the connection of the APIs, during use to identify errors
+    st.sidebar.info(f"Key OpenAI Loaded: {'✅ Yes' if st.session_state.openai_api_key else '❌ Not'}")
+    st.sidebar.info(f"Key Gemini Loaded: {'✅ Yes' if st.session_state.gemini_api_key else '❌ Not'}")
+
+    #openai_api_key = st.text_input(
+    #    "OpenAI API Key",
+    #    type="password",
+    #    help="Enter your OpenAI API key here",
+    #)
+    #st.session_state.openai_api_key = openai_api_key
     
-    gemini_api_key = st.text_input(
-        "Gemini API Key",
-        type="password",
-        help="Enter your Gemini API key here",
-    )
-    st.session_state.gemini_api_key = gemini_api_key
+    #gemini_api_key = st.text_input(
+    #    "Gemini API Key",
+    #    type="password",
+    #    help="Enter your Gemini API key here",
+    #)
+    #st.session_state.gemini_api_key = gemini_api_key
     
     # Model selection
     st.subheader("Model Selection")
@@ -81,7 +87,6 @@ with st.sidebar:
         client = genai.Client(api_key=st.session_state.gemini_api_key)
     
     
-
     # Temperature slider
     temperature = st.slider(
         "Temperature",
@@ -124,6 +129,7 @@ def decode_json(response):
         json_str = json_str.strip()
         json_data = json.loads(json_str)
         st.json(json_data)
+        
     except json.JSONDecodeError:
         # If JSON parsing fails, show the raw response
         st.write("Raw response (not valid JSON):")
@@ -225,4 +231,4 @@ with col2:
         ready = False
 
     else:
-        st.write("Please enter your API keys in the sidebar and upload an image")
+        st.write("Please select API models and upload an image")
