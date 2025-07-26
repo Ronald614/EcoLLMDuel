@@ -6,8 +6,38 @@ from io import BytesIO
 from google import genai
 import json
 import os
+import random
 
 
+# Function to encode the image
+def encode_image(image):
+    buffered = BytesIO()
+    image.save(buffered, format="JPEG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+ready = False
+
+
+def decode_json(response):
+    # Try to parse the response as JSON and display it nicely
+    try:
+        # Clean the response text to ensure it's valid JSON
+        json_str = response.strip()
+        if json_str.startswith("```json"):
+            json_str = json_str[7:]
+        if json_str.endswith("```"):
+            json_str = json_str[:-3]
+        json_str = json_str.strip()
+        json_data = json.loads(json_str)
+        st.json(json_data)
+        
+    except json.JSONDecodeError:
+        # If JSON parsing fails, show the raw response
+        st.write("Raw response (not valid JSON):")
+        st.write(response)
+
+
+#Start Page
 st.set_page_config(layout="wide")
 
 st.logo("logo.png")
@@ -15,78 +45,50 @@ st.logo("logo.png")
 st.title("EcoLMM for Image description")
 
 # Initialize session state for API keys if not exists
+#the keys are envoriment variables
 if "openai_api_key" not in st.session_state: 
-    st.session_state.openai_api_key = os.getenv("key_api_gpt") #the keys are envoriment variables
+    st.session_state.openai_api_key = os.getenv("key_api_gpt") 
 
 if "gemini_api_key" not in st.session_state:
     st.session_state.gemini_api_key =  os.getenv("key_api_gemini")
+    
+# list of models
+if "available_models" not in st.session_state:
+    st.session_state.available_models = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gemini-2.0-flash",
+                                         "gemini-2.0-flash-lite", "gemini-2.5-pro-exp-03-25", "gemini-1.5-flash"]
+if "model_a" not in st.session_state:
+    st.session_state.model_a = None
 
-if "selected_model" not in st.session_state:
-    st.session_state.selected_model = ""
+if "model_b" not in st.session_state:
+    st.session_state.model_b = None
 
 if "species_list" not in st.session_state:
     st.session_state.species_list = ["Crax globulosa","Didelphis albiventris","Leopardus wiedii", "Panthera onca", "Sapajus macrocephalus", "Sciurus spadiceus", "Tupinambis teguixin"]
 
 # Sidebar configuration
 with st.sidebar:
-    st.title("Configuration")
+    # Information about the connection of the APIs, during use to identify errors (debug)
+    st.sidebar.info(f"API 1 Loaded: {'✅ Yes' if st.session_state.openai_api_key else '❌ Not'}")
+    st.sidebar.info(f"API 2 Loaded: {'✅ Yes' if st.session_state.gemini_api_key else '❌ Not'}")
     
-    # Information about the connection of the APIs, during use to identify errors
-    st.sidebar.info(f"Key OpenAI Loaded: {'✅ Yes' if st.session_state.openai_api_key else '❌ Not'}")
-    st.sidebar.info(f"Key Gemini Loaded: {'✅ Yes' if st.session_state.gemini_api_key else '❌ Not'}")
+    st.title("Sort your models:")
+    #Random Select model
+    if st.button("Sort"):
+        modelos_sorteados = random.sample(st.session_state.available_models, 2)
+        st.session_state.model_a = modelos_sorteados[0]
+        st.session_state.model_b = modelos_sorteados[1]
 
-    #openai_api_key = st.text_input(
-    #    "OpenAI API Key",
-    #    type="password",
-    #    help="Enter your OpenAI API key here",
-    #)
-    #st.session_state.openai_api_key = openai_api_key
-    
-    #gemini_api_key = st.text_input(
-    #    "Gemini API Key",
-    #    type="password",
-    #    help="Enter your Gemini API key here",
-    #)
-    #st.session_state.gemini_api_key = gemini_api_key
-    
-    # Model selection
-    st.subheader("Model Selection")
-    model_type = st.radio(
-        "Select API Provider",
-        ["OpenAI", "Gemini"],
-        key="provider_radio"
-    )
-
-    # Model list selection based on provider
-    if model_type == "OpenAI":
-        selected_model = st.selectbox(
-            "Select OpenAI Model",
-            ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
-            index=0,
-            help="Choose the OpenAI model to use for analysis"
-        )
-        st.session_state.selected_model = selected_model
-
-    else:  # Gemini
-        selected_model = st.selectbox(
-            "Select Gemini Model",
-            ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-pro-exp-03-25", "gemini-1.5-flash"],
-            index=0,
-            help="Choose the Gemini model to use for analysis",
-        )
-        st.session_state.selected_model = selected_model
-
-    # Initialize clients based on selected model
-    if model_type == "OpenAI" and st.session_state.openai_api_key:
-        client = OpenAI(api_key=st.session_state.openai_api_key)
-        models = client.models.list()
-        for model in models:
-            print(model.id)
-    
-    if model_type == "Gemini" and st.session_state.gemini_api_key:
-        client = genai.Client(api_key=st.session_state.gemini_api_key)
-    
-    
+    #if models was selected
+    if st.session_state.model_a and st.session_state.model_b:
+        # Initialize clients based on models sorted(A and B)
+        if "gpt" in modelos_sorteados and st.session_state.openai_api_key:
+            client = OpenAI(api_key=st.session_state.openai_api_key)
+            models = client.models.list()
+            for model in models:
+                print(model.id)
+        if "gemini" in modelos_sorteados and st.session_state.gemini_api_key:
+            client = genai.Client(api_key=st.session_state.gemini_api_key)
+        
     # Temperature slider
     temperature = st.slider(
         "Temperature",
@@ -117,24 +119,6 @@ with st.sidebar:
         st.rerun()
 
 
-def decode_json(response):
-    # Try to parse the response as JSON and display it nicely
-    try:
-        # Clean the response text to ensure it's valid JSON
-        json_str = response.strip()
-        if json_str.startswith("```json"):
-            json_str = json_str[7:]
-        if json_str.endswith("```"):
-            json_str = json_str[:-3]
-        json_str = json_str.strip()
-        json_data = json.loads(json_str)
-        st.json(json_data)
-        
-    except json.JSONDecodeError:
-        # If JSON parsing fails, show the raw response
-        st.write("Raw response (not valid JSON):")
-        st.write(response)
-
 species_str = ", ".join(st.session_state.species_list)
 
 prompt = f"""You are an expert in image recognition and wildlife biology. You will be provided with a camera trap image, and your task is to analyze it thoroughly. 
@@ -151,20 +135,14 @@ Return your analysis in JSON format with the following fields:
 If no animals are present, return a JSON object where all fields are populated with "None" except for image description.
 """
 
-# Function to encode the image
-def encode_image(image):
-    buffered = BytesIO()
-    image.save(buffered, format="JPEG")
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-ready = False
 
 # Main content area
 st.write("")  # Add some space before the columns
 
 # Create columns with proper spacing and reduced gap
-col1, col2 = st.columns([1, 2], gap="small")
+col1, col2, col3 = st.columns([1, 2, 3], gap="small")
 
+#Input of Image
 with col1:
     # File uploader
     img_file_buffer = st.file_uploader(
@@ -183,9 +161,9 @@ with col1:
         st.image(image, use_container_width=True)
         ready = True
     
-# Get response based on selected model
+# Get response in model A
 with col2:
-    if model_type == "OpenAI" and st.session_state.openai_api_key and ready:
+    if st.session_state.openai_api_key and ready:
         # Encode the image
         base64_image = encode_image(image)
         
@@ -216,7 +194,7 @@ with col2:
         decode_json(response.choices[0].message.content)
         ready = False
         
-    elif model_type == "Gemini" and st.session_state.gemini_api_key and ready:
+    elif "Gemini" and st.session_state.gemini_api_key and ready:
         # Configure generation config for Gemini
         generation_config = genai.types.GenerateContentConfig(
             temperature=temperature,
@@ -232,3 +210,10 @@ with col2:
 
     else:
         st.write("Please select API models and upload an image")
+
+# Get Responde in model B
+#with col3:
+    
+    
+# Get Response of user
+    
