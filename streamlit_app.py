@@ -15,9 +15,6 @@ def encode_image(image):
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-ready = False
-
-
 def decode_json(response):
     # Try to parse the response as JSON and display it nicely
     try:
@@ -135,6 +132,7 @@ Return your analysis in JSON format with the following fields:
 If no animals are present, return a JSON object where all fields are populated with "None" except for image description.
 """
 
+ready = False
 
 # Main content area
 st.write("")  # Add some space before the columns
