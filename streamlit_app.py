@@ -8,7 +8,6 @@ import json
 import os
 import random
 
-
 # Function to encode the image
 def encode_image(image):
     buffered = BytesIO()
@@ -51,13 +50,16 @@ if "gemini_api_key" not in st.session_state:
     
 # list of models
 if "available_models" not in st.session_state:
-    st.session_state.available_models = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gemini-2.0-flash",
-                                         "gemini-2.0-flash-lite", "gemini-2.5-pro-exp-03-25", "gemini-1.5-flash"]
+    st.session_state.available_models = {"gpt-4o":1, "gpt-4o-mini":1, "gpt-4-turbo":1, "gemini-2.0-flash":2,
+                                         "gemini-2.0-flash-lite":2, "gemini-2.5-pro-exp-03-25":2, "gemini-1.5-flash":2}
 if "model_a" not in st.session_state:
     st.session_state.model_a = None
 
 if "model_b" not in st.session_state:
     st.session_state.model_b = None
+
+if "image" not in st.session_state:
+    st.session_state.image = None
 
 if "species_list" not in st.session_state:
     st.session_state.species_list = ["Crax globulosa","Didelphis albiventris","Leopardus wiedii", "Panthera onca", "Sapajus macrocephalus", "Sciurus spadiceus", "Tupinambis teguixin"]
@@ -68,22 +70,29 @@ with st.sidebar:
     st.sidebar.info(f"API 1 Loaded: {'✅ Yes' if st.session_state.openai_api_key else '❌ Not'}")
     st.sidebar.info(f"API 2 Loaded: {'✅ Yes' if st.session_state.gemini_api_key else '❌ Not'}")
     
-    st.title("Sort your models:")
+    st.title("Sort the image and models")
+    
     #Random Select model
-    if st.button("Sort"):
-        modelos_sorteados = random.sample(st.session_state.available_models, 2)
-        st.session_state.model_a = modelos_sorteados[0]
-        st.session_state.model_b = modelos_sorteados[1]
+    if st.button("Sort Models"):
+        sorted_models = random.sample(list(st.session_state.available_models), 2)
+        st.session_state.model_a = sorted_models[0]
+        st.session_state.model_b = sorted_models[1]
 
-    #if models was selected
+    #if models was not selected
     if st.session_state.model_a and st.session_state.model_b:
         # Initialize clients based on models sorted(A and B)
-        if "gpt" in modelos_sorteados and st.session_state.openai_api_key:
+        
+        if ((st.session_state.available_models[st.session_state.model_a] == 1 or st.session_state.available_models[st.session_state.model_b] == 1) 
+            and st.session_state.openai_api_key):
+            
             client = OpenAI(api_key=st.session_state.openai_api_key)
             models = client.models.list()
             for model in models:
                 print(model.id)
-        if "gemini" in modelos_sorteados and st.session_state.gemini_api_key:
+                
+        if  ((st.session_state.available_models[st.session_state.model_a] == 0 or st.session_state.available_models[st.session_state.model_b] == 1) 
+              and st.session_state.gemini_api_key):
+            
             client = genai.Client(api_key=st.session_state.gemini_api_key)
         
     # Temperature slider
@@ -93,7 +102,7 @@ with st.sidebar:
         max_value=1.0,
         value=0.1,
         step=0.1,
-        help="Controls randomness. Lower values are more focused, higher values more creative."# Initialize clients based on selected model
+        help="Controls randomness. Lower values are more focused, higher values more creative."
     )
 
     # Keywords for image analysis
@@ -140,6 +149,7 @@ st.write("")  # Add some space before the columns
 # Create columns with proper spacing and reduced gap
 col1, col2, col3 = st.columns([1, 2, 3], gap="small")
 
+
 #Input of Image
 with col1:
     # File uploader
@@ -161,53 +171,7 @@ with col1:
     
 # Get response in model A
 with col2:
-    if st.session_state.openai_api_key and ready:
-        # Encode the image
-        base64_image = encode_image(image)
-        
-        # Create the message for the API
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}",
-                            "detail": "low"
-                        },
-                    },
-                ],
-            }
-        ]
-        
-        # Get response from OpenAI
-        st.write('model:', st.session_state.selected_model) 
-        response = client.chat.completions.create(
-            model=st.session_state.selected_model,
-            messages=messages,
-            temperature=temperature
-        )
-        decode_json(response.choices[0].message.content)
-        ready = False
-        
-    elif "Gemini" and st.session_state.gemini_api_key and ready:
-        # Configure generation config for Gemini
-        generation_config = genai.types.GenerateContentConfig(
-            temperature=temperature,
-        )
-        st.write('model:', st.session_state.selected_model)
-        response = client.models.generate_content(
-            model=st.session_state.selected_model,
-            contents=[prompt, image],
-            config=generation_config
-        )
-        decode_json(response.text)
-        ready = False
-
-    else:
-        st.write("Please select API models and upload an image")
+   
 
 # Get Responde in model B
 #with col3:
