@@ -14,6 +14,12 @@ Sistema de Avaliação de llms para imagens de armadilhas fotográficas com duel
 
 ``pip install -r requirements.txt``
 
+##(3.1) Adicionar a pasta 'mamiraua' ao diretorio do projeto
+
 ## (4) Rodar o comando do streamlit
 
 ``streamlit run streamlit_app.py``
+
+
+> [!WARNING]
+> Para que a funcionalidade de "Sortear Imagem Aleatória" funcione, é **essencial** criar a pasta `mamiraua/` no diretório principal do projeto. Dentro dela, crie subpastas com os nomes das espécies para organizar as imagens.
