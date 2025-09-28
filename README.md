@@ -14,7 +14,7 @@ Sistema de Avaliação de llms para imagens de armadilhas fotográficas com duel
 
 ``pip install -r requirements.txt``
 
-##(3.1) Adicionar a pasta 'mamiraua' ao diretorio do projeto
+## (3.1) Adicionar a pasta 'mamiraua' ao diretorio do projeto
 
 ## (4) Rodar o comando do streamlit
 
