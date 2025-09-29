@@ -106,6 +106,18 @@ def get_gemini_response(api_key, model_name, prompt_text, img, temp):
     response = model.generate_content([prompt_text, img], generation_config=generation_config)
     return response.text
 
+def get_deepseek_response(api_key, model_name, prompt_text, encoded_img, temp):
+    """Obtém a resposta da API da DeepSeek."""
+    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
+    
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "user", "content": [{"type": "text", "text": prompt_text}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded_img}"}}]}],
+        temperature=temp,
+        max_tokens=1024,
+    )
+    return response.choices[0].message.content
+
 #Encapsular a lógica do comando da chamada a api
 # Crie esta nova função junto com as outras
 def run_analysis(model_name, prompt, image, encoded_image, temp):
@@ -117,6 +129,9 @@ def run_analysis(model_name, prompt, image, encoded_image, temp):
             decode_json(response_text)
         elif model_type == 2 and st.session_state.gemini_api_key:
             response_text = get_gemini_response(st.session_state.gemini_api_key, model_name, prompt, image, temp)
+            decode_json(response_text)
+        elif model_type == 3 and st.session_state.deepseek_api_key:
+            response_text = get_openai_response(st.session_state.deepseek_api_key, model_name, prompt, encoded_image, temp)
             decode_json(response_text)
         else:
             st.error(f"Chave de API não encontrada para o modelo {model_name}.")
@@ -136,19 +151,24 @@ st.title("LLM Duel: Análise de Imagens de Armadilha Fotográfica")
 # Initialize session state for API keys if not exists
 if "openai_api_key" not in st.session_state: st.session_state.openai_api_key = os.getenv("OPENAI_API_KEY") 
 if "gemini_api_key" not in st.session_state: st.session_state.gemini_api_key =  os.getenv("GOOGLE_API_KEY")
+if "deepseek_api_key" not in st.session_state: st.session_state.deepseek_api_key =  os.getenv("DEEPSEEK_API_KEY")
     
 # list of models
 if "available_models" not in st.session_state:
     st.session_state.available_models = {
         #OpenAI
-        "gpt-4o":1, 
-        "gpt-4o-mini":1, 
-        "gpt-4-turbo":1, 
+        #"gpt-4o":1, 
+        #"gpt-4o-mini":1, 
+        #"gpt-4-turbo":1, 
         #Gemini
-        "gemini-2.0-flash":2,
-        "gemini-2.5-flash-image-preview":2, 
-        "gemini-2.5-flash-lite-preview-09-2025":2, 
-        "gemini-2.0-flash-thinking-exp-01-21":2}
+        #"gemini-2.0-flash":2,
+        #"gemini-2.5-flash-image-preview":2, 
+        #"gemini-2.5-flash-lite-preview-09-2025":2, 
+        #"gemini-2.0-flash-thinking-exp-01-21":2,
+        #DeepSeek
+        "deepseek-chat":3,
+        "deepseek-deepseek-reasoner":3,
+        }
     
 if "model_a" not in st.session_state: st.session_state.model_a = None
 
@@ -161,8 +181,7 @@ if "species_list" not in st.session_state: st.session_state.species_list = load_
 if "name_image" not in st.session_state: st.session_state.name_image = None
 
 
-#Flags para sinalizar quando mostrar o formulario e mensagem de confimacao
-if "evaluation_submitted" not in st.session_state: st.session_state.evaluation_submitted = False
+#Flag para sinalizar quando mostrar o formulario
 if "analysis_run" not in st.session_state: st.session_state.analysis_run = False
 
 
@@ -174,6 +193,7 @@ with st.sidebar:
     # Information about the connection of the APIs, during use to identify errors (debug)
     st.sidebar.info(f"Key 1 Carregada: {'✅ Sim' if st.session_state.openai_api_key else '❌ Não'}")
     st.sidebar.info(f"Key 2 Carregada: {'✅ Sim' if st.session_state.gemini_api_key else '❌ Não'}")
+    st.sidebar.info(f"Key 3 Carregada: {'✅ Sim' if st.session_state.deepseek_api_key else '❌ Não'}")
     
     st.title("Confirações")
     
@@ -282,74 +302,80 @@ if st.session_state.image and st.session_state.model_a and st.session_state.mode
 #----------------------------------
 #Lógica do formulario
 
-# Só mostra o formulário se uma imagem foi analisada com sucesso e o botao de analise foi apertado
-if st.session_state.analysis_run:
+## --------------------------------------------------------------------------
+# FORMULÁRIO DE AVALIAÇÃO
+# --------------------------------------------------------------------------
 
-    st.markdown("---") # Linha divisória
+# Esta função organiza os dados e salva no CSV.
+def save_evaluation_to_csv(evaluation_data):
+    """Anexa os dados da avaliação a um arquivo CSV."""
+    results_file = "evaluation_results.csv"
     
-    with st.form("evaluation_form"):
-        st.header("Qual modelo foi melhor?")
-        
-        # Opções de avaliação
-        evaluation = st.radio(
-            "Selecione sua avaliação:",
-            options=[
-                f"Modelo A  foi superior ✅",
-                f"Modelo B  foi superior ✅",
-                "Empate ⚖️",
-                "Ambos foram ruins ❌"
-            ],
-            index=None # Nenhum selecionado por padrão
-        )
+    # Prepara os cabeçalhos do CSV
+    fieldnames = [
+        "timestamp", "image_name", "model_a", "model_b",
+        "evaluation", "comments", "prompt"
+    ]
+    
+    # Garante que o diretório para o arquivo de resultados exista
+    os.makedirs(os.path.dirname(results_file) or '.', exist_ok=True)
+    
+    file_exists = os.path.isfile(results_file)
+    
+    with open(results_file, 'a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(evaluation_data)
 
-        # Campo para comentários
-        comments = st.text_area("Comentários (opcional):", max_chars=50)
+# A lógica principal da interface começa aqui.
+if st.session_state.analysis_run:
+    st.markdown("---")
+    
+    # Se a avaliação já foi enviada, mostra a mensagem de sucesso e revela os modelos.
+    if st.session_state.evaluation_submitted:
+        st.success("✅ Avaliação salva com sucesso! Obrigado pelo feedback.")
+        st.info(f"""Para sua referência:
+- **Modelo A** era: `{st.session_state.model_a}`
+- **Modelo B** era: `{st.session_state.model_b}`""")
+    
+    # Se a avaliação ainda não foi enviada, mostra o formulário.
+    else:
+        with st.form("evaluation_form", clear_on_submit=True):
+            st.header("Qual modelo foi melhor?")
+            
+            evaluation = st.radio(
+                "Selecione sua avaliação:",
+                options=[
+                    "Modelo A foi superior ✅",
+                    "Modelo B foi superior ✅",
+                    "Empate ⚖️",
+                    "Ambos foram ruins ❌"
+                ],
+                index=None
+            )
 
-        # Botão de envio
-        submitted = st.form_submit_button("Salvar Avaliação")
+            comments = st.text_area("Comentários (opcional):", max_chars=140)
+            submitted = st.form_submit_button("Salvar Avaliação")
 
-        if submitted:
-            if not evaluation:
-                st.warning("Por favor, selecione uma opção de avaliação.")
-            else:
-                # Lógica para salvar os dados em um arquivo CSV
-
-                # Define o nome do arquivo de resultados
-                results_file = "evaluation_results.csv"
-                
-                # Pega o nome da imagem (seja do upload ou do sorteio)
-                image_name = st.session_state.get("image_name", "N/A")
-
-                # Prepara a linha de dados para salvar
-                new_data = {
-                    "timestamp": datetime.now().isoformat(),
-                    "image_name": image_name,
-                    "model_a": st.session_state.model_a,
-                    "model_b": st.session_state.model_b,
-                    "evaluation": evaluation,
-                    "comments": comments,
-                    #"prompt": prompt # A variável 'prompt' que você já tem no código
-                }
-                
-                # Verifica se o arquivo já existe para adicionar ou criar o cabeçalho
-                file_exists = os.path.isfile(results_file)
-                
-                with open(results_file, 'a', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=new_data.keys())
-                    if not file_exists:
-                        writer.writeheader() # Escreve o cabeçalho se o arquivo for novo
-                    writer.writerow(new_data)
-
-                st.session_state.evaluation_submitted = True
-                st.toast("✅ Avaliação salva com sucesso!", icon="🎉")
-                time.sleep(2)
-
-                #Limpar o estado atual para indefinido:
-                st.session_state.image = None
-                st.session_state.image_name = None
-                st.session_state.model_a = None
-                st.session_state.model_b = None
-                st.session_state.analysis_run = False
-                st.session_state.evaluation_submitted = False
-                #Reiniciar a sessão do usuário
-                st.rerun()
+            if submitted:
+                if not evaluation:
+                    st.warning("Por favor, selecione uma opção de avaliação.")
+                else:
+                    # Prepara o dicionário de dados para salvar
+                    current_evaluation = {
+                        "timestamp": datetime.now().isoformat(),
+                        "image_name": st.session_state.get("image_name"),
+                        "model_a": st.session_state.model_a,
+                        "model_b": st.session_state.model_b,
+                        "evaluation": evaluation,
+                        "comments": comments,
+                        #"prompt": prompt
+                    }
+                    
+                    # Chama a função para salvar os dados
+                    save_evaluation_to_csv(current_evaluation)
+                    
+                    # Ativa a flag para indicar que a avaliação foi enviada
+                    st.session_state.evaluation_submitted = True
+                    st.rerun()
