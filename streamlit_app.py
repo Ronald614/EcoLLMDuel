@@ -1,12 +1,15 @@
-from openai import OpenAI # type: ignore
-import streamlit as st # type: ignore
-from PIL import Image # type: ignore
+from openai import OpenAI 
+import streamlit as st 
+from PIL import Image 
 import base64
 from io import BytesIO
 import google.generativeai as genai
 import json
 import os
 import random
+import csv
+from datetime import datetime
+import time
 
 # Function to encode the image
 def encode_image(image):
@@ -42,6 +45,9 @@ def load_species_from_file(filename="species.txt"):
         # Standart list if dont have archive
         return ["Crax globulosa", "Didelphis albiventris", "Leopardus wiedii", "Panthera onca"]
     
+
+#----------------------------
+#Lógica de sorteio e caminho da imagem
 def get_random_image(base_folder="mamiraua"):
     """Seleciona uma imagem aleatória de qualquer subpasta de espécie."""
     
@@ -65,14 +71,16 @@ def get_random_image(base_folder="mamiraua"):
         st.sidebar.error(f"Nenhuma imagem encontrada em '{random_species_folder}'.")
         return None
 
-    # Sorteia uma imagem e a retorna.
+    # Sorteia uma imagem e a retorna junto com o caminho dela.
     random_image_name = random.choice(images)
     image_path = os.path.join(full_path, random_image_name)
     
     st.sidebar.success(f"Imagem sorteada: {random_species_folder}/{random_image_name}")
-    return Image.open(image_path)
+    return Image.open(image_path), image_path
 
 
+#-----------------------------
+#Lógica das requests
 def get_openai_response(api_key, model_name, prompt_text, encoded_img, temp):
     #Get response of openai api
     client = OpenAI(api_key=api_key)
@@ -98,7 +106,9 @@ def get_gemini_response(api_key, model_name, prompt_text, img, temp):
     response = model.generate_content([prompt_text, img], generation_config=generation_config)
     return response.text
 
-#Start Page
+
+#------------------------
+#Lógica da Sessao do Usuário
 st.set_page_config(layout="wide")
 
 st.logo("logo.png")
@@ -106,9 +116,8 @@ st.logo("logo.png")
 st.title("LLM Duel: Análise de Imagens de Armadilha Fotográfica")
 
 # Initialize session state for API keys if not exists
-if "openai_api_key" not in st.session_state: st.session_state.openai_api_key = os.getenv("key_api_gpt") 
-
-if "gemini_api_key" not in st.session_state: st.session_state.gemini_api_key =  os.getenv("key_api_gemini")
+if "openai_api_key" not in st.session_state: st.session_state.openai_api_key = os.getenv("OPENAI_API_KEY") 
+if "gemini_api_key" not in st.session_state: st.session_state.gemini_api_key =  os.getenv("GOOGLE_API_KEY")
     
 # list of models
 if "available_models" not in st.session_state:
@@ -131,7 +140,16 @@ if "image" not in st.session_state: st.session_state.image = None
 
 if "species_list" not in st.session_state: st.session_state.species_list = load_species_from_file()
 
+if "image_name" not in st.session_state: st.session_state.image_name = None
 
+
+#Flags para sinalizar quando mostrar o formulario e mensagem de confimacao
+if "evaluation_submitted" not in st.session_state: st.session_state.evaluation_submitted = False
+if "analysis_run" not in st.session_state: st.session_state.analysis_run = False
+
+
+#-------------------------------
+#Lógica dos menus do usuário
 
 # Sidebar configuration
 with st.sidebar:
@@ -147,6 +165,7 @@ with st.sidebar:
         sorted_models = random.sample(models, 2)
         st.session_state.model_a = sorted_models[0]
         st.session_state.model_b = sorted_models[1]
+        st.session_state.analysis_run = False
 
     # Temperature slider
     temperature = st.slider(
@@ -205,10 +224,13 @@ with col1:
         'Faça upload de uma imagem (PNG, JPG)', type=['png','jpg','jpeg']
     )
     if st.button("Usar Imagem Aleatória"):
-        st.session_state.image = get_random_image("./mamiraua") 
+        st.session_state.image, st.session_state.image_name = get_random_image("./mamiraua") 
+        st.session_state.analysis_run = False   
     
     if img_file_buffer:
         st.session_state.image = Image.open(img_file_buffer)
+        st.session_state.image_name = img_file_buffer.name 
+        st.session_state.analysis_run = False
     
     if st.session_state.image:
         # Rezise image for display
@@ -216,41 +238,121 @@ with col1:
         display_image.thumbnail((640, 640), Image.Resampling.LANCZOS)
         st.image(display_image, width='stretch')
 
+
+#-----------------------------
+#Encapsular a lógica do comando da chamada a api
+# Crie esta nova função junto com as outras
+def run_analysis(model_name, prompt, image, encoded_image, temp):
+    try:
+        model_type = st.session_state.available_models[model_name]
+        
+        if model_type == 1 and st.session_state.openai_api_key:
+            response_text = get_openai_response(st.session_state.openai_api_key, model_name, prompt, encoded_image, temp)
+            decode_json(response_text)
+        elif model_type == 2 and st.session_state.gemini_api_key:
+            response_text = get_gemini_response(st.session_state.gemini_api_key, model_name, prompt, image, temp)
+            decode_json(response_text)
+        else:
+            st.error(f"Chave de API não encontrada para o modelo {model_name}.")
+            
+    except Exception as e:
+        st.error(f"Erro ao chamar o modelo {model_name}: {e}")
+
+
+
 # Central button for start analise
 if st.session_state.image and st.session_state.model_a and st.session_state.model_b:
-    if st.button("Analisar Imagem", width='stretch', type="primary"):
+    if st.button("Analisar Imagem", width='stretch', type="primary", disabled=st.session_state.analysis_run):
+
+        st.session_state.evaluation_submitted = False
+        st.session_state.analysis_run = True
+
         encoded_image = encode_image(st.session_state.image)
         
         # --- Analise in Model A ---
         with col2:
             #st.header(f"Modelo A: {st.session_state.model_a}")
             with st.spinner("Analisando..."):
-                try:
-                    model_type = st.session_state.available_models[st.session_state.model_a]
-                    if model_type == 1 and st.session_state.openai_api_key:
-                        response_text = get_openai_response(st.session_state.openai_api_key, st.session_state.model_a, prompt, encoded_image, temperature)
-                        decode_json(response_text)
-                    elif model_type == 2 and st.session_state.gemini_api_key:
-                        response_text = get_gemini_response(st.session_state.gemini_api_key, st.session_state.model_a, prompt, st.session_state.image, temperature)
-                        decode_json(response_text)
-                    else:
-                        st.error("Chave de API não encontrada para este modelo.")
-                except Exception as e:
-                    st.error(f"Erro ao chamar o Modelo A: {e}")
-
+               run_analysis(st.session_state.model_a, prompt, st.session_state.image, encoded_image, temperature)
         # --- Analise in Model B ---
         with col3:
             #st.header(f"Modelo B: {st.session_state.model_b}")
             with st.spinner("Analisando..."):
-                try:
-                    model_type = st.session_state.available_models[st.session_state.model_b]
-                    if model_type == 1 and st.session_state.openai_api_key:
-                        response_text = get_openai_response(st.session_state.openai_api_key, st.session_state.model_b, prompt, encoded_image, temperature)
-                        decode_json(response_text)
-                    elif model_type == 2 and st.session_state.gemini_api_key:
-                        response_text = get_gemini_response(st.session_state.gemini_api_key, st.session_state.model_b, prompt, st.session_state.image, temperature)
-                        decode_json(response_text)
-                    else:
-                        st.error("Chave de API não encontrada para este modelo.")
-                except Exception as e:
-                    st.error(f"Erro ao chamar o Modelo B: {e}")
+               run_analysis(st.session_state.model_b, prompt, st.session_state.image, encoded_image, temperature)
+        
+
+
+#----------------------------------
+#Lógica do formulario
+
+# Só mostra o formulário se uma imagem foi analisada com sucesso e o botao de analise foi apertado
+if st.session_state.analysis_run:
+
+    st.markdown("---") # Linha divisória
+    
+    with st.form("evaluation_form"):
+        st.header("Qual modelo foi melhor?")
+        
+        # Opções de avaliação
+        evaluation = st.radio(
+            "Selecione sua avaliação:",
+            options=[
+                f"Modelo A  foi superior ✅",
+                f"Modelo B  foi superior ✅",
+                "Empate ⚖️",
+                "Ambos foram ruins ❌"
+            ],
+            index=None # Nenhum selecionado por padrão
+        )
+
+        # Campo para comentários
+        comments = st.text_area("Comentários (opcional):", max_chars=50)
+
+        # Botão de envio
+        submitted = st.form_submit_button("Salvar Avaliação")
+
+        if submitted:
+            if not evaluation:
+                st.warning("Por favor, selecione uma opção de avaliação.")
+            else:
+                # Lógica para salvar os dados em um arquivo CSV
+
+                # Define o nome do arquivo de resultados
+                results_file = "evaluation_results.csv"
+                
+                # Pega o nome da imagem (seja do upload ou do sorteio)
+                image_name = st.session_state.get("image_name", "N/A")
+
+                # Prepara a linha de dados para salvar
+                new_data = {
+                    "timestamp": datetime.now().isoformat(),
+                    "image_name": image_name,
+                    "model_a": st.session_state.model_a,
+                    "model_b": st.session_state.model_b,
+                    "evaluation": evaluation,
+                    "comments": comments,
+                    #"prompt": prompt # A variável 'prompt' que você já tem no código
+                }
+                
+                # Verifica se o arquivo já existe para adicionar ou criar o cabeçalho
+                file_exists = os.path.isfile(results_file)
+                
+                with open(results_file, 'a', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=new_data.keys())
+                    if not file_exists:
+                        writer.writeheader() # Escreve o cabeçalho se o arquivo for novo
+                    writer.writerow(new_data)
+
+                st.session_state.evaluation_submitted = True
+                st.toast("✅ Avaliação salva com sucesso!", icon="🎉")
+                time.sleep(2)
+
+                #Limpar o estado atual para indefinido:
+                st.session_state.image = None
+                st.session_state.image_name = None
+                st.session_state.model_a = None
+                st.session_state.model_b = None
+                st.session_state.analysis_run = False
+                st.session_state.evaluation_submitted = False
+                #Reiniciar a sessão do usuário
+                st.rerun()
