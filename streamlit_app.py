@@ -106,6 +106,24 @@ def get_gemini_response(api_key, model_name, prompt_text, img, temp):
     response = model.generate_content([prompt_text, img], generation_config=generation_config)
     return response.text
 
+#Encapsular a lógica do comando da chamada a api
+# Crie esta nova função junto com as outras
+def run_analysis(model_name, prompt, image, encoded_image, temp):
+    try:
+        model_type = st.session_state.available_models[model_name]
+        
+        if model_type == 1 and st.session_state.openai_api_key:
+            response_text = get_openai_response(st.session_state.openai_api_key, model_name, prompt, encoded_image, temp)
+            decode_json(response_text)
+        elif model_type == 2 and st.session_state.gemini_api_key:
+            response_text = get_gemini_response(st.session_state.gemini_api_key, model_name, prompt, image, temp)
+            decode_json(response_text)
+        else:
+            st.error(f"Chave de API não encontrada para o modelo {model_name}.")
+            
+    except Exception as e:
+        st.error(f"Erro ao chamar o modelo {model_name}: {e}")
+
 
 #------------------------
 #Lógica da Sessao do Usuário
@@ -140,7 +158,7 @@ if "image" not in st.session_state: st.session_state.image = None
 
 if "species_list" not in st.session_state: st.session_state.species_list = load_species_from_file()
 
-if "image_name" not in st.session_state: st.session_state.image_name = None
+if "name_image" not in st.session_state: st.session_state.name_image = None
 
 
 #Flags para sinalizar quando mostrar o formulario e mensagem de confimacao
@@ -224,7 +242,7 @@ with col1:
         'Faça upload de uma imagem (PNG, JPG)', type=['png','jpg','jpeg']
     )
     if st.button("Usar Imagem Aleatória"):
-        st.session_state.image, st.session_state.image_name = get_random_image("./mamiraua") 
+        st.session_state.image, st.session_state.name_image = get_random_image("./mamiraua") 
         st.session_state.analysis_run = False   
     
     if img_file_buffer:
@@ -237,27 +255,6 @@ with col1:
         display_image = st.session_state.image.copy()
         display_image.thumbnail((640, 640), Image.Resampling.LANCZOS)
         st.image(display_image, width='stretch')
-
-
-#-----------------------------
-#Encapsular a lógica do comando da chamada a api
-# Crie esta nova função junto com as outras
-def run_analysis(model_name, prompt, image, encoded_image, temp):
-    try:
-        model_type = st.session_state.available_models[model_name]
-        
-        if model_type == 1 and st.session_state.openai_api_key:
-            response_text = get_openai_response(st.session_state.openai_api_key, model_name, prompt, encoded_image, temp)
-            decode_json(response_text)
-        elif model_type == 2 and st.session_state.gemini_api_key:
-            response_text = get_gemini_response(st.session_state.gemini_api_key, model_name, prompt, image, temp)
-            decode_json(response_text)
-        else:
-            st.error(f"Chave de API não encontrada para o modelo {model_name}.")
-            
-    except Exception as e:
-        st.error(f"Erro ao chamar o modelo {model_name}: {e}")
-
 
 
 # Central button for start analise
