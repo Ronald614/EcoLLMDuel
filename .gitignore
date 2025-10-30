@@ -1,4 +1,18 @@
+#Ignorar os pastas com o dataset
 mamiraua/
 mamiraua samples/
+
+#Ignorar o ambiente virtual
 env/
-evaluation_results.csv
+
+# Ignorar o diretório de segredos do Streamlit
+/.streamlit/secrets.toml
+
+# Ignorar ambientes virtuais do Python
+.venv/
+venv/
+*.venv
+
+# Ignorar caches do Python
+__pycache__/
+*.pyc
