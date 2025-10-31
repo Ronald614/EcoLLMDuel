@@ -244,16 +244,16 @@ def render_sidebar():
     # Sidebar configuration
     with st.sidebar:
         # Information about the connection of the APIs, during use to identify errors (debug)
-        st.sidebar.info(f"Key 1 Carregada: {'✅ Sim' if st.session_state.openai_api_key else '❌ Não'}")
-        st.sidebar.info(f"Key 2 Carregada: {'✅ Sim' if st.session_state.gemini_api_key else '❌ Não'}")
-        st.sidebar.info(f"Key 3 Carregada: {'✅ Sim' if st.session_state.deepseek_api_key else '❌ Não'}")
+        st.sidebar.info(f"Chave OpenAi(gpt) carregada: {'✅ Sim' if st.session_state.openai_api_key else '❌ Não'}")
+        st.sidebar.info(f"Chave Gemini carregada: {'✅ Sim' if st.session_state.gemini_api_key else '❌ Não'}")
+        st.sidebar.info(f"Chave Deep Seek carregada: {'✅ Sim' if st.session_state.deepseek_api_key else '❌ Não'}")
     
         st.title("Configurações")
     
-        if st.toggle("Adicionar Chaves ?"):
-            user_key_gpt = st.text_input("Chave para a OpenAi(GPT)", help="Copie e Cole a chave neste campo", type="password")
+        if st.toggle("Adicionar Chaves de API?"):
+            user_key_gpt = st.text_input("Chave para a OpenAi(GPT)", help="Copie e Cole a chave neste campo", type="password", max_chars=100)
         
-            user_key_gemini = st.text_input("Chave para o Gemini", help="Copie e Cole a chave neste campo",  type="password")
+            user_key_gemini = st.text_input("Chave para o Gemini", help="Copie e Cole a chave neste campo",  type="password", max_chars=100)
         
             if st.button("Confirmar chaves"):
                 st.session_state.openai_api_key = user_key_gpt
