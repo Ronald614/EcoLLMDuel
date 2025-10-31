@@ -65,7 +65,7 @@ def decode_json(response):
 def save_evaluation_to_db(evaluation_data):
     """Insere os dados da avaliação no banco de dados SQLite."""
     try:
-        query = """
+        query = text("""
         INSERT INTO evaluations (
             timestamp, image_name, model_a, model_b, 
             evaluation, comments, prompt, temperature
@@ -73,10 +73,10 @@ def save_evaluation_to_db(evaluation_data):
             :timestamp, :image_name, :model_a, :model_b, 
             :evaluation, :comments, :prompt, :temperature
         );
-        """
+        """)
         # A conexão 'conn' já foi criada fora da função
         with conn.session as s:
-            s.execute(query, params=evaluation_data)
+            s.execute(query, evaluation_data)
             s.commit()
     except Exception as e:
         st.error(f"Erro ao salvar no banco de dados: {e}")
@@ -383,19 +383,6 @@ def main():
 
     # 1. Inicializa o estado (DEVE ser a primeira chamada do streamlit)
     initialize_state()
-
-    # --- TESTE DE CONEXÃO DO BANCO ---
-    try:
-        # A conexão é definida na linha 31 (nível global)
-        # Vamos tentar usar a conexão 'conn' para fazer uma consulta simples
-        with conn.session as s:
-           s.execute(text("SELECT 1")) # <-- MUDANÇA AQUI
-        
-        st.success("✅ Conexão com o Supabase OK!")
-    except Exception as e:
-        st.error(f"❌ Falha na conexão com o Supabase: {e}")
-        st.stop() # Para a execução se o banco falhar
-    # --- FIM DO TESTE ---
 
     # 2. Renderiza a UI e obtém parâmetros dinâmicos
     temperature, keywords = render_sidebar()
