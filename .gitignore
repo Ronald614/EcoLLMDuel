@@ -1,6 +1,5 @@
 #Ignorar os pastas com o dataset
-mamiraua/
-mamiraua samples/
+#mamiraua/
 
 #Ignorar o ambiente virtual
 env/
