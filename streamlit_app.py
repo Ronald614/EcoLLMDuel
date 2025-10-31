@@ -173,23 +173,19 @@ def run_analysis(model_name, prompt, image, encoded_image, temp):
         
         if model_type == 1 and st.session_state.openai_api_key:
             response_text = get_openai_response(st.session_state.openai_api_key, model_name, prompt, encoded_image, temp)
-            decode_json(response_text)
         elif model_type == 2 and st.session_state.gemini_api_key:
             response_text = get_gemini_response(st.session_state.gemini_api_key, model_name, prompt, image, temp)
-            decode_json(response_text)
         elif model_type == 3 and st.session_state.deepseek_api_key:
             response_text = get_deepseek_response(st.session_state.deepseek_api_key, model_name, prompt, encoded_image, temp)
-            decode_json(response_text)
+           
         else:
             error_msg = f"Chave de API não encontrada para o modelo {model_name}."
-            st.error(error_msg) # Mostra o erro imediatamente
             return False, error_msg # Retorna a falha e a mensagem
     
-        return True, None # <-- Retorna Sucesso e Nenhuma mensagem de erro
+        return True, response_text# <-- Retorna Sucesso e a resposta do modelo
     
     except Exception as e:
         error_msg = f"Erro ao chamar o modelo {model_name}: {e}"
-        st.error(error_msg) # Mostra o erro imediatamente
         return False, str(error_msg) # Retorna a falha e a exceção
     
 #-------------------------------
@@ -210,7 +206,7 @@ def initialize_state():
     # --- Configuração dos Modelos ---
     "available_models": {                                   # Mapeamento de modelos disponíveis para seus tipos (ex: 2=Gemini)
         #"gpt-4o": 1, "gpt-4o-mini": 1, "gpt-4-turbo": 1,
-        "gemini-2.0-flash": 2, "gemini-2.5-flash-image-preview": 2,
+        "gemini-2.0-flash": 2, #"gemini-2.5-flash-image-preview": 2,
         "gemini-2.5-flash-lite-preview-09-2025": 2,
         "gemini-2.0-flash-thinking-exp-01-21": 2,
     },
@@ -225,9 +221,11 @@ def initialize_state():
     # --- Flags de Controle de Estado (Controle do Fluxo) ---
     "analysis_run": False,                                  # Flag (True/False): Se a análise já foi executada
     "evaluation_submitted": False,                          # Flag (True/False): Se o formulário de avaliação já foi enviado
-    "analysis_succeeded": False,                            # Flag (True/False): Se AMBOS os modelos rodaram com sucesso
+    "response_a": None,                                     #Salva a resposta do modelo A 
+    "response_b": None,                                     #Salva a resposta do modelo B
     "error_a": None,                                        # Armazena a mensagem de erro do Modelo A (se houver)
-    "error_b": None                                         # Armazena a mensagem de erro do Modelo B (se houver)
+    "error_b": None,                                         # Armazena a mensagem de erro do Modelo B (se houver)
+    "analysis_succeeded": False                             # Flag (True/False): Se a analise foi um sucesso no geral
 }
     
     # Itera e define no session_state apenas se a chave não existir
@@ -402,21 +400,19 @@ def main():
         # Codifica a imagem uma única vez
         encoded_image = encode_image(st.session_state.image)
         
-        if st.button("Analisar Imagem", use_container_width=True):
-            # Define as flags de estado
-            st.session_state.analysis_run = True
-            st.session_state.evaluation_submitted = False
-            
-            # Limpa erros antigos do estado
+        if st.button("Analisar Imagem", use_container_width=True):    
+            # Limpa TUDO do estado anterior
+            st.session_state.response_a = None
+            st.session_state.response_b = None
             st.session_state.error_a = None
             st.session_state.error_b = None
-            
+            st.session_state.analysis_succeed = None
+
             # Roda a análise para o Modelo A
-            sucesso_a = False
             with col2:    
                 st.header("Modelo A")
                 with st.spinner("Modelo A está analisando..."):
-                    sucesso_a, error_a = run_analysis(
+                    sucesso_a, resposta_a = run_analysis(
                         st.session_state.model_a, 
                         prompt, 
                         st.session_state.image, 
@@ -425,11 +421,10 @@ def main():
                     )
 
             # Roda a análise para o Modelo B
-            sucesso_b = False
             with col3:
                 st.header("Modelo B")
                 with st.spinner("Modelo B está analisando..."):
-                    sucesso_b, error_b= run_analysis(
+                    sucesso_b, resposta_b= run_analysis(
                         st.session_state.model_b, 
                         prompt, 
                         st.session_state.image, 
@@ -437,33 +432,62 @@ def main():
                         temperature
                     )
             
-            #Armazenar se a analise foi um sucesso no geral
+            #Guardar as informacoes das requests
+            if sucesso_a:
+                st.session_state.response_a = resposta_a
+            else:
+                st.session_state.error_a = resposta_a        
+            if sucesso_b:
+                st.session_state.response_b = resposta_b
+            else:
+                st.session_state.error_b = resposta_b
+
+            # Define as flags de estado
+            st.session_state.analysis_run = True
+            st.session_state.evaluation_submitted = False
             st.session_state.analysis_succeeded = sucesso_a and sucesso_b
-            
-            # Salva os erros no session_state para sobreviver ao rerun
-            if not sucesso_a:
-                st.session_state.error_a = error_a
-            if not sucesso_b:
-                st.session_state.error_b = error_b
-            
-            # Força o rerun para o formulário aparecer abaixo
+
+            #Forçar o recarregamento para mostrar o formulario
             st.rerun()
 
-    # 5. Lógica de Avaliação (Formulário)
-    # Se a análise já rodou, mostra o formulário de avaliação
+   # 5. Lógica de Exibição e Avaliação (PÓS-RERUN)
+    
+    # Só execute se o botão "Analisar" já foi clicado
     if st.session_state.get("analysis_run", False):
-        if st.session_state.get("analysis_succeeded", False): # Se os dois modelos nao geraram erros
-                render_evaluation_form(prompt, temperature)
+        
+        # --- Bloco de Exibição (Lendo do State) ---
+        # Este bloco REDESENHA as respostas (ou erros) nas colunas
+        with col2:
+            st.header("Modelo A")
+            response_a = st.session_state.get("response_a")
+            error_a = st.session_state.get("error_a")
+            
+            if response_a:
+                decode_json(response_a) # <-- Exibe a RESPOSTA salva
+            elif error_a:
+                st.error(f"Erro Modelo A ({st.session_state.model_a}): {error_a}")
+        
+        with col3:
+            st.header("Modelo B")
+            response_b = st.session_state.get("response_b")
+            error_b = st.session_state.get("error_b")
+            
+            if response_b:
+                decode_json(response_b) # <-- Exibe a RESPOSTA salva
+            elif error_b:
+                st.error(f"Erro Modelo B ({st.session_state.model_b}): {error_b}")
+
+        # --- Bloco do Formulário (Decide o que mostrar) ---
+        
+        # Se AMBOS os modelos tiveram sucesso, mostre o formulário
+        if st.session_state.get("analysis_succeeded", False):
+            render_evaluation_form(prompt, temperature)
         else: 
-            # Informar o erro ao usuário e pedir pra reiniciar a analise
+            # Se um ou ambos falharam, mostre a mensagem de erro geral
             st.error("❌ A análise falhou para um ou ambos os modelos.")
             st.warning("Não é possível registrar uma avaliação para esta execução. Por favor, tente analisar novamente ou use outra imagem.")
-
-            # Lê os erros salvos no session_state e os exibe
-            if st.session_state.get("error_a"):
-                st.error(f"Erro Modelo A ({st.session_state.model_a}): {st.session_state.error_a}")
-            if st.session_state.get("error_b"):
-                st.error(f"Erro Modelo B ({st.session_state.model_b}): {st.session_state.error_b}")
+            # (Os erros detalhados já apareceram nas colunas acima)
+   
 
 # --- PONTO DE ENTRADA DO SCRIPT ---
 if __name__ == "__main__":
