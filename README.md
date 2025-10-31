@@ -14,8 +14,6 @@ Sistema de Avaliação de llms para imagens de armadilhas fotográficas com duel
 
 ``pip install -r requirements.txt``
 
-## (4) Adicionar a pasta 'mamiraua' ao diretorio do projeto
-
 > [!IMPORTANT]
 > **Aviso sobre as Chaves de API**
 >
