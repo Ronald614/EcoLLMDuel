@@ -1,494 +1,399 @@
 import streamlit as st
-from openai import OpenAI 
-from PIL import Image 
-import base64 
-from io import BytesIO
+import pandas as pd
 import google.generativeai as genai
-import json
-import os
-import random
-import csv
-from datetime import datetime
-from sqlalchemy import text #para conectar ao banco de dados
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from sqlalchemy import text
+import io
 import time
+import random
 
-# --- CONSTANTES ---
-PROMPT_TEMPLATE = """Você é um biólogo especialista em vida selvagem e reconhecimento de imagem. Analise esta imagem de armadilha fotográfica.
-Descreva a imagem detalhadamente, identificando qualquer animal presente, incluindo nome científico, nome comum e o número de indivíduos.
-Considere as seguintes espécies como possíveis candidatas: {species_str}, mas não se limite apenas a elas.
-
-Retorne a análise em formato JSON com os seguintes campos:
-- "Deteccao": "Sim" se animais forem detectados, se não "Nenhuma".
-- "Nome Cientifico": O nome científico da espécie.
-- "Nome Comum": O nome comum da espécie.
-- "Numero de Individuos": A contagem de animais detectados.
-- "Descricao da Imagem": Uma descrição detalhada do que é visível na imagem.
-
-Se nenhum animal for detectado, retorne um JSON onde todos os campos são "Nenhum", exceto a "Descricao da Imagem".
-"""
-
-# Criar a conexão com o supabase (o Streamlit gerencia isso)
-#########################################################333333
-conn = st.connection(
-    "evaluations_db", 
-    type="sql",
-    url=st.secrets["DATABASE_URL"]
+# Configuração inicial da aplicação
+st.set_page_config(
+    page_title="EcoLLM Duel",
+    page_icon="🌿",
+    layout="wide"
 )
-######################################333
 
-# Funcoes para converter as imagens para base64 e para gerar a saida das llms em json e salvar no cvs
-# Entrada -> Processamento -> Saida dos dados
-# -------------------------------
-def encode_image(image):
-    buffered = BytesIO()
-    image.save(buffered, format="JPEG")
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+# Estabelece conexão com banco de dados PostgreSQL (Supabase)
+conn = st.connection("postgresql", type="sql")
 
-def decode_json(response):
-    # Try to parse the response as JSON and display it nicely
-    try:
-        # Clean the response text to ensure it's valid JSON
-        json_str = response.strip()
-        if json_str.startswith("```json"):
-            json_str = json_str[7:]
-        if json_str.endswith("```"):
-            json_str = json_str[:-3]
-        json_str = json_str.strip()
-        json_data = json.loads(json_str)
-        st.json(json_data)
+# Configura API do Google Gemini
+if "GOOGLE_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+
+# Identificador da pasta no Google Drive contendo o dataset de imagens
+FOLDER_ID_DRIVE = "COLOQUE_AQUI_O_ID_DA_SUA_PASTA_DO_DRIVE"
+
+# Funções para integração com Google Drive
+
+def conectar_drive():
+    """
+    Estabelece autenticação com Google Drive API utilizando service account.
+    
+    Returns:
+        Resource object da API do Drive ou None em caso de falha
+    """
+    if "gcp_service_account" not in st.secrets:
+        st.error("Credenciais do Google Drive não encontradas na configuração")
+        return None
         
-    except json.JSONDecodeError:
-        # If JSON parsing fails, show the raw response
-        st.write("Raw response (not valid JSON):")
-        st.write(response)             
-        
-def save_evaluation_to_db(evaluation_data):
-    """Insere os dados da avaliação no banco de dados SQLite."""
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds = service_account.Credentials.from_service_account_info(
+        creds_dict, scopes=["https://www.googleapis.com/auth/drive.readonly"]
+    )
+    return build('drive', 'v3', credentials=creds)
+
+@st.cache_data(ttl=3600)
+def listar_imagens_drive():
+    """
+    Recupera lista de arquivos de imagem disponíveis na pasta configurada.
+    Utiliza cache de 1 hora para reduzir chamadas à API.
+    
+    Returns:
+        Lista de dicionários contendo metadados dos arquivos
+    """
     try:
-        query = text("""
-        INSERT INTO evaluations (
-            timestamp, image_name, model_a, model_b, 
-            evaluation, comments, prompt, temperature
-        ) VALUES (
-            :timestamp, :image_name, :model_a, :model_b, 
-            :evaluation, :comments, :prompt, :temperature
-        );
-        """)
-        # A conexão 'conn' já foi criada fora da função
+        service = conectar_drive()
+        if not service: 
+            return []
+        
+        # Query para filtrar apenas imagens não deletadas
+        query = f"'{FOLDER_ID_DRIVE}' in parents and trashed = false and mimeType contains 'image/'"
+        
+        results = service.files().list(
+            q=query, 
+            fields="files(id, name, webViewLink)",
+            pageSize=1000
+        ).execute()
+        
+        return results.get('files', [])
+    except Exception as e:
+        st.error(f"Erro ao listar arquivos do Drive: {e}")
+        return []
+
+def baixar_imagem_bytes(file_id):
+    """
+    Realiza download de imagem para memória RAM sem persistência em disco.
+    
+    Args:
+        file_id: Identificador único do arquivo no Google Drive
+        
+    Returns:
+        Bytes da imagem ou None em caso de erro
+    """
+    try:
+        service = conectar_drive()
+        request = service.files().get_media(fileId=file_id)
+        arquivo_ram = io.BytesIO()
+        downloader = MediaIoBaseDownload(arquivo_ram, request)
+        
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+            
+        arquivo_ram.seek(0)
+        return arquivo_ram.read()
+    except Exception as e:
+        st.error(f"Erro ao baixar imagem: {e}")
+        return None
+
+# Funções para processamento com modelos de linguagem
+
+def chamar_gemini(modelo_nome, prompt, imagem_bytes):
+    """
+    Executa inferência em modelo Gemini com input multimodal (texto + imagem).
+    
+    Args:
+        modelo_nome: String identificando a versão do modelo
+        prompt: Texto da instrução para o modelo
+        imagem_bytes: Dados binários da imagem
+        
+    Returns:
+        Resposta textual do modelo ou mensagem de erro
+    """
+    try:
+        model = genai.GenerativeModel(modelo_nome)
+        
+        # Converte bytes para objeto PIL Image
+        from PIL import Image
+        img = Image.open(io.BytesIO(imagem_bytes))
+        
+        response = model.generate_content([prompt, img])
+        return response.text
+    except Exception as e:
+        return f"Erro na inferência do modelo {modelo_nome}: {str(e)}"
+
+# Funções de persistência e cálculo de ranking
+
+def verificar_perfil(email):
+    """
+    Verifica existência de usuário no banco de dados.
+    
+    Args:
+        email: Endereço de email do usuário
+        
+    Returns:
+        Dicionário com dados do perfil ou None se não encontrado
+    """
+    email_tratado = email.lower().strip()
+    try:
+        df = conn.query(
+            "SELECT * FROM user_profiles WHERE email = :email", 
+            params={"email": email_tratado}, 
+            ttl=0,
+            show_spinner=False
+        )
+        if not df.empty:
+            return df.iloc[0].to_dict()
+        return None
+    except Exception as e:
+        print(f"Erro ao consultar banco de dados: {e}")
+        return None
+
+def salvar_voto(modelo_a, modelo_b, vencedor, prompt, resp_a, resp_b, img_id):
+    """
+    Persiste resultado de avaliação comparativa no banco de dados.
+    
+    Args:
+        modelo_a: Identificador do primeiro modelo
+        modelo_b: Identificador do segundo modelo
+        vencedor: Modelo vencedor ou 'Empate'
+        prompt: Texto da instrução utilizada
+        resp_a: Resposta do modelo A
+        resp_b: Resposta do modelo B
+        img_id: Identificador da imagem avaliada
+        
+    Returns:
+        Boolean indicando sucesso da operação
+    """
+    try:
         with conn.session as s:
-            s.execute(query, evaluation_data)
-            s.commit()
-    except Exception as e:
-        st.error(f"Erro ao salvar no banco de dados: {e}")
-#----------------------------------------------
-
-
-#Funcoes para selecionar a especie
-#------------------------------
-def load_species_from_file(filename="species.txt"):
-    #Load a list of especies from file species.txt
-    try:
-        with open(filename, "r") as f:
-            species = [line.strip() for line in f if line.strip()]
-        return species
-    except FileNotFoundError:
-        # Standart list if dont have archive
-        return ["Crax globulosa", "Didelphis albiventris", "Leopardus wiedii", "Panthera onca"]
-    
-def get_random_image(base_folder="mamiraua"):
-    """Seleciona uma imagem aleatória de qualquer subpasta de espécie."""
-    
-    if not os.path.isdir(base_folder):
-        st.sidebar.error(f"Diretório base '{base_folder}' não encontrado.")
-        return None
-    
-    # Lista todas as subpastas disponíveis.
-    species_folders = [f for f in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, f))]
-    if not species_folders:
-        st.sidebar.error("Nenhuma pasta de espécie encontrada.")
-        return None
-    
-    # Sorteia uma pasta da lista completa.
-    random_species_folder = random.choice(species_folders)
-    full_path = os.path.join(base_folder, random_species_folder)
-
-    # Lista as imagens na pasta sorteada.
-    images = [img for img in os.listdir(full_path) if img.lower().endswith(('.png', '.jpg', '.jpeg'))]
-    if not images:
-        st.sidebar.error(f"Nenhuma imagem encontrada em '{random_species_folder}'.")
-        return None
-
-    # Sorteia uma imagem e a retorna junto com o caminho dela.
-    random_image_name = random.choice(images)
-    image_path = os.path.join(full_path, random_image_name)
-    
-    st.sidebar.success(f"Imagem sorteada: {random_species_folder}/{random_image_name}")
-    return Image.open(image_path), image_path
-#---------------------------------
-
-
-#Lógica das requests
-#-------------------------------
-def get_openai_response(api_key, model_name, prompt_text, encoded_img, temp):
-    #Get response of openai api
-    client = OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {"role": "user", "content": [
-                {"type": "text", "text": prompt_text},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded_img}"}}
-            ]}
-        ],
-        temperature=temp,
-        max_tokens=1024,
-    )
-    return response.choices[0].message.content
-
-def get_gemini_response(api_key, model_name, prompt_text, img, temp):
-    #Get response of gemini api
-    genai.configure(api_key=api_key)
-    generation_config = genai.types.GenerationConfig(temperature=temp)
-    model = genai.GenerativeModel(model_name)
-    response = model.generate_content([prompt_text, img], generation_config=generation_config)
-    return response.text
-
-def get_deepseek_response(api_key, model_name, prompt_text, encoded_img, temp):
-    """Obtém a resposta da API da DeepSeek."""
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[{"role": "user", "content": [{"type": "text", "text": prompt_text}, 
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded_img}"}}]
-                }],
-        temperature=temp,   
-        max_tokens=1024,
-    )
-    return response.choices[0].message.content
-
-
-def run_analysis(model_name, prompt, image, encoded_image, temp):
-    try:
-        model_type = st.session_state.available_models[model_name]
-        
-        if model_type == 1 and st.session_state.openai_api_key:
-            response_text = get_openai_response(st.session_state.openai_api_key, model_name, prompt, encoded_image, temp)
-        elif model_type == 2 and st.session_state.gemini_api_key:
-            response_text = get_gemini_response(st.session_state.gemini_api_key, model_name, prompt, image, temp)
-        elif model_type == 3 and st.session_state.deepseek_api_key:
-            response_text = get_deepseek_response(st.session_state.deepseek_api_key, model_name, prompt, encoded_image, temp)
-           
-        else:
-            error_msg = f"Chave de API não encontrada para o modelo {model_name}."
-            return False, error_msg # Retorna a falha e a mensagem
-    
-        return True, response_text# <-- Retorna Sucesso e a resposta do modelo
-    
-    except Exception as e:
-        error_msg = f"Erro ao chamar o modelo {model_name}: {e}"
-        return False, str(error_msg) # Retorna a falha e a exceção
-    
-#-------------------------------
-
-
-# Função para sempre iniciar a sessao do usuario e os dados que são persistentes
-#---------------------------------
-def initialize_state():
-    """Centraliza toda a inicialização do session_state."""
-    
-    # Define os padrões para cada chave
-    defaults = {
-    # --- Chaves de API ---
-    "openai_api_key": st.secrets["OPENAI_API_KEY"],         # Chave da API da OpenAI (lida do SECRET)
-    "gemini_api_key": st.secrets["GOOGLE_API_KEY"],          # Chave da API do Google Gemini (lida do SECRET)
-    "deepseek_api_key": st.secrets["DEEPSEEK_API_KEY"],      # Chave da API do DeepSeek (lida do SECRET)
-
-    # --- Configuração dos Modelos ---
-    "available_models": {                                   # Mapeamento de modelos disponíveis para seus tipos (ex: 2=Gemini)
-        #"gpt-4o": 1, "gpt-4o-mini": 1, "gpt-4-turbo": 1,
-        "gemini-2.0-flash": 2, #"gemini-2.5-flash-image-preview": 2,
-        "gemini-2.5-flash-lite-preview-09-2025": 2,
-        "gemini-2.0-flash-thinking-exp-01-21": 2,
-    },
-
-    # --- Estado do Duelo Atual ---
-    "model_a": None,                                        # Nome do modelo sorteado para a Posição A
-    "model_b": None,                                        # Nome do modelo sorteado para a Posição B
-    "image": None,                                          # Objeto da imagem (PIL.Image) em análise
-    "name_image": None,                                     # Nome do arquivo da imagem (para o CSV)
-    "species_list": load_species_from_file(),               # Lista de espécies carregada do 'species.txt'
-
-    # --- Flags de Controle de Estado (Controle do Fluxo) ---
-    "analysis_run": False,                                  # Flag (True/False): Se a análise já foi executada
-    "evaluation_submitted": False,                          # Flag (True/False): Se o formulário de avaliação já foi enviado
-    "response_a": None,                                     #Salva a resposta do modelo A 
-    "response_b": None,                                     #Salva a resposta do modelo B
-    "error_a": None,                                        # Armazena a mensagem de erro do Modelo A (se houver)
-    "error_b": None,                                         # Armazena a mensagem de erro do Modelo B (se houver)
-    "analysis_succeeded": False                             # Flag (True/False): Se a analise foi um sucesso no geral
-}
-    
-    # Itera e define no session_state apenas se a chave não existir
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-#------------------------
-
-
-#Definindo as colunas e a sidebar
-#--------------------------------------
-#Funcao para definir a side bar (selecao dos modelos)
-def render_sidebar():
-    # Sidebar configuration
-    with st.sidebar:
-        # Information about the connection of the APIs, during use to identify errors (debug)
-        st.sidebar.info(f"Chave OpenAi(gpt) carregada: {'✅ Sim' if st.session_state.openai_api_key else '❌ Não'}")
-        st.sidebar.info(f"Chave Gemini carregada: {'✅ Sim' if st.session_state.gemini_api_key else '❌ Não'}")
-        st.sidebar.info(f"Chave Deep Seek carregada: {'✅ Sim' if st.session_state.deepseek_api_key else '❌ Não'}")
-    
-        st.title("Configurações")
-    
-        if st.toggle("Adicionar Chaves de API?"):
-            user_key_gpt = st.text_input("Chave para a OpenAi(GPT)", help="Copie e Cole a chave neste campo", type="password", max_chars=100)
-        
-            user_key_gemini = st.text_input("Chave para o Gemini", help="Copie e Cole a chave neste campo",  type="password", max_chars=100)
-        
-            if st.button("Confirmar chaves"):
-                st.session_state.openai_api_key = user_key_gpt
-                st.session_state.gemini_api_key = user_key_gemini
-
-        #Random Select model
-        if st.button("Sortear os modelos"):
-            models = list(st.session_state.available_models)
-            sorted_models = random.sample(models, 2)
-            st.session_state.model_a = sorted_models[0]
-            st.session_state.model_b = sorted_models[1]
-            st.session_state.analysis_run = False
-
-        # Temperature slider
-        temperature = st.slider(
-            "Temperatura",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.1,
-            step=0.1,
-            help="Controla a aleatoriedade. Valores baixos são mais determinísticos"
-        )
-
-        # Keywords for image analysis
-        keywords = st.multiselect(
-            "Selecionar as especies que voce quer focar",
-            st.session_state.species_list,
-            default=st.session_state.species_list,
-            help="Selecione as especies para guiar a análise"
-        )
-
-        # Species list management
-        new_species = st.text_input(
-            "Adicione novas especies a lista de espécies.",
-            help="Entre com o nome da especie e aperte Enter para adiciona a lista.",
-        )
-        
-        if new_species and new_species not in st.session_state.species_list:
-            st.session_state.species_list.append(new_species)
-            st.success(f"Adicionado {new_species} a lista de especies")
-            st.rerun()
-        return temperature, keywords
-
-#Funcao para definir a coluna de entrada das imagens (selecao das imagens)
-def image_input_collum(col):
-    with col:
-        st.header("Imagem de Entrada")
-        
-        # Opções para obter a imagem
-        img_file_buffer = st.file_uploader('Faça upload de uma imagem (PNG, JPG)', type=['png','jpg','jpeg'],)
-
-        if st.button("Usar Imagem Aleatória"):
-            img_data = get_random_image("./mamiraua")
-            if img_data:
-                st.session_state.image, st.session_state.image_name = img_data
-                st.session_state.analysis_run = False
-                st.session_state.evaluation_submitted = False # Reseta avaliação
-        
-        if img_file_buffer:
-            st.session_state.image = Image.open(img_file_buffer)
-            st.session_state.image_name = img_file_buffer.name 
-            st.session_state.analysis_run = False
-            st.session_state.evaluation_submitted = False # Reseta avaliação
-        
-        if st.session_state.image:
-            # Rezise image for display
-            display_image = st.session_state.image.copy()
-            display_image.thumbnail((640, 640), Image.Resampling.LANCZOS)
-            st.image(display_image, width='stretch') # Alterado para use_column_width
-
-def render_evaluation_form(prompt_usado, temperature_usado):
-    """Renderiza a seção de avaliação após a análise."""
-    st.markdown("---")
-    
-    if st.session_state.evaluation_submitted:
-        st.success("✅ Avaliação salva com sucesso! Obrigado pelo feedback.")
-        st.info(f"""Para sua referência:
-        - **Modelo A** era: `{st.session_state.model_a}`
-        - **Modelo B** era: `{st.session_state.model_b}`""")
-        return # Não mostra o formulário se já foi enviado
-
-    # Se a avaliação ainda não foi enviada, mostra o formulário.
-    with st.form("evaluation_form", clear_on_submit=True):
-        st.header("Qual modelo foi melhor?")
-        
-        evaluation = st.radio(
-            "Selecione sua avaliação:",
-            options=[
-                "Modelo A foi superior ✅",
-                "Modelo B foi superior ✅",
-                "Empate ⚖️",
-                "Ambos foram ruins ❌"
-            ],
-            index=None
-        )
-
-        comments = st.text_area("Comentários (opcional):", max_chars=140)
-        submitted = st.form_submit_button("Salvar Avaliação")
-
-        if submitted:
-            if not evaluation:
-                st.warning("Por favor, selecione uma opção de avaliação.")
-            else:
-                current_evaluation = {
-                    "timestamp": datetime.now().isoformat(),
-                    "image_name": st.session_state.get("name_image"),
-                    "model_a": st.session_state.model_a,
-                    "model_b": st.session_state.model_b,
-                    "evaluation": evaluation,
-                    "comments": comments,
-                    "prompt": prompt_usado, # Salva o prompt usado
-                    "temperature": temperature_usado
+            s.execute(
+                text("""
+                    INSERT INTO evaluations (
+                        model_a, model_b, winner, 
+                        prompt_text, response_a, response_b, 
+                        image_id, timestamp
+                    ) VALUES (
+                        :ma, :mb, :win, 
+                        :prompt, :ra, :rb, 
+                        :img_id, NOW()
+                    )
+                """),
+                {
+                    "ma": modelo_a, "mb": modelo_b, "win": vencedor,
+                    "prompt": prompt, "ra": resp_a, "rb": resp_b,
+                    "img_id": img_id
                 }
-                
-                save_evaluation_to_db(current_evaluation)
-                st.session_state.evaluation_submitted = True
-                st.rerun()
-#--------------------
+            )
+            s.commit()
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar avaliação: {e}")
+        return False
 
+def calcular_elo_ranking():
+    """
+    Calcula ranking Elo baseado no histórico completo de avaliações.
+    Implementa sistema Elo padrão com K-factor de 32 e rating inicial de 1200.
+    
+    Returns:
+        DataFrame com modelos ordenados por pontuação Elo
+    """
+    try:
+        df = conn.query("SELECT model_a, model_b, winner FROM evaluations", ttl=0, show_spinner=False)
+    except:
+        return pd.DataFrame()
+        
+    if df.empty: 
+        return pd.DataFrame()
 
-# --- FLUXO DE EXECUÇÃO PRINCIPAL ---
+    elos = {}
+    k_factor = 32
+
+    def get_elo(m): 
+        return elos.get(m, 1200)
+
+    for _, row in df.iterrows():
+        ma, mb, win = row['model_a'], row['model_b'], row['winner']
+        ra, rb = get_elo(ma), get_elo(mb)
+        
+        # Calcula probabilidades esperadas
+        ea = 1 / (1 + 10 ** ((rb - ra) / 400))
+        eb = 1 / (1 + 10 ** ((ra - rb) / 400))
+        
+        # Define resultado real (1 = vitória, 0.5 = empate, 0 = derrota)
+        sa = 1 if win == ma else (0.5 if win == 'Empate' else 0)
+        sb = 1 if win == mb else (0.5 if win == 'Empate' else 0)
+        
+        # Atualiza ratings
+        elos[ma] = ra + k_factor * (sa - ea)
+        elos[mb] = rb + k_factor * (sb - eb)
+
+    ranking = [{"Modelo": m, "Elo Score": int(r)} for m, r in elos.items()]
+    return pd.DataFrame(ranking).sort_values("Elo Score", ascending=False).reset_index(drop=True)
+
+# Interface principal da aplicação
+
 def main():
-    
-    st.set_page_config(layout="wide")
-    st.logo("logo.png")
-    st.title("LLM Duel: Análise de Imagens de Armadilha Fotográfica")
-
-    # 1. Inicializa o estado (DEVE ser a primeira chamada do streamlit)
-    initialize_state()
-
-    # 2. Renderiza a UI e obtém parâmetros dinâmicos
-    temperature, keywords = render_sidebar()
-    col1, col2, col3 = st.columns([1, 2, 2], gap="medium")
-    
-    # Passa a 'col1' para a função de renderização
-    image_input_collum(col1)
-
-    # 3. Constrói o prompt dinâmico (AGORA é seguro usar o session_state)
-    species_str = ", ".join(st.session_state.species_list)
-    prompt = PROMPT_TEMPLATE.format(species_str=species_str)
-
-    # 4. Lógica de Análise (O Duelo)
-    # Só mostra o botão de análise se tivermos tudo pronto
-    if st.session_state.image and st.session_state.model_a and st.session_state.model_b:
+    # Sidebar: Sistema de autenticação
+    with st.sidebar:
+        st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=50)
+        st.title("EcoLLM Duel")
         
-        # Codifica a imagem uma única vez
-        encoded_image = encode_image(st.session_state.image)
+        if "usuario" not in st.session_state:
+            email_input = st.text_input("Email de Acesso")
+            if st.button("Entrar"):
+                user = verificar_perfil(email_input)
+                if user:
+                    st.session_state["usuario"] = user
+                    st.success(f"Olá, {user.get('name', 'Pesquisador')}!")
+                    st.rerun()
+                else:
+                    st.error("Acesso não autorizado.")
+            st.stop()
+        else:
+            st.write(f"Usuário: **{st.session_state['usuario']['name']}**")
+            if st.button("Sair"):
+                del st.session_state["usuario"]
+                st.rerun()
+
+    # Navegação por abas
+    tab_arena, tab_ranking = st.tabs(["Arena de Batalha", "Ranking Global"])
+
+    # Aba 1: Interface de avaliação comparativa
+    with tab_arena:
+        st.header("Teste Cego de Visão Computacional")
         
-        if st.button("Analisar Imagem", use_container_width=True):    
-            # Limpa TUDO do estado anterior
-            st.session_state.response_a = None
-            st.session_state.response_b = None
-            st.session_state.error_a = None
-            st.session_state.error_b = None
-            st.session_state.analysis_succeed = None
+        # Seção de seleção de imagem
+        col_btn, col_info = st.columns([1, 3])
+        with col_btn:
+            if st.button("Sortear Imagem do Drive", type="primary"):
+                with st.spinner("Carregando dataset..."):
+                    lista = listar_imagens_drive()
+                    if lista:
+                        img_data = random.choice(lista)
+                        bytes_img = baixar_imagem_bytes(img_data['id'])
+                        
+                        if bytes_img:
+                            # Armazena dados na sessão
+                            st.session_state['duelo_img_bytes'] = bytes_img
+                            st.session_state['duelo_img_id'] = img_data['id']
+                            st.session_state['duelo_img_nome'] = img_data['name']
+                            # Limpa resultados anteriores
+                            st.session_state.pop('respostas', None) 
+                        else:
+                            st.error("Erro ao baixar dados da imagem.")
+                    else:
+                        st.warning("Pasta do Drive vazia ou identificador incorreto.")
 
-            # Roda a análise para o Modelo A
-            with col2:    
-                st.header("Modelo A")
-                with st.spinner("Modelo A está analisando..."):
-                    sucesso_a, resposta_a = run_analysis(
-                        st.session_state.model_a, 
-                        prompt, 
-                        st.session_state.image, 
-                        encoded_image, 
-                        temperature
-                    )
-
-            # Roda a análise para o Modelo B
-            with col3:
-                st.header("Modelo B")
-                with st.spinner("Modelo B está analisando..."):
-                    sucesso_b, resposta_b= run_analysis(
-                        st.session_state.model_b, 
-                        prompt, 
-                        st.session_state.image, 
-                        encoded_image, 
-                        temperature
-                    )
+        # Exibe imagem selecionada
+        if 'duelo_img_bytes' in st.session_state:
+            st.image(st.session_state['duelo_img_bytes'], 
+                    caption=st.session_state.get('duelo_img_nome'), 
+                    width=500)
             
-            #Guardar as informacoes das requests
-            if sucesso_a:
-                st.session_state.response_a = resposta_a
-            else:
-                st.session_state.error_a = resposta_a        
-            if sucesso_b:
-                st.session_state.response_b = resposta_b
-            else:
-                st.session_state.error_b = resposta_b
+            # Seção de configuração do prompt
+            prompt = st.text_area(
+                "O que você quer perguntar sobre a imagem?", 
+                "Descreva detalhadamente o que você vê nesta imagem sob uma perspectiva ecológica."
+            )
+            
+            modelos = ["gemini-1.5-flash", "gemini-1.5-pro"]
+            
+            if st.button("INICIAR DUELO"):
+                if len(modelos) < 2:
+                    st.error("São necessários pelo menos 2 modelos configurados.")
+                else:
+                    m1, m2 = random.sample(modelos, 2)
+                    
+                    with st.spinner("Processando análise das imagens..."):
+                        # Executa inferência em ambos os modelos
+                        r1 = chamar_gemini(m1, prompt, st.session_state['duelo_img_bytes'])
+                        r2 = chamar_gemini(m2, prompt, st.session_state['duelo_img_bytes'])
+                        
+                        # Armazena respostas de forma anonimizada
+                        st.session_state['respostas'] = {
+                            "A": {"modelo": m1, "texto": r1},
+                            "B": {"modelo": m2, "texto": r2}
+                        }
 
-            # Define as flags de estado
-            st.session_state.analysis_run = True
-            st.session_state.evaluation_submitted = False
-            st.session_state.analysis_succeeded = sucesso_a and sucesso_b
+        # Seção de votação (exibida apenas após inferência)
+        if 'respostas' in st.session_state:
+            resp = st.session_state['respostas']
+            
+            st.divider()
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                st.subheader("Modelo A")
+                st.info(resp["A"]["texto"])
+                if st.button("Votar no A", use_container_width=True):
+                    vencedor = resp["A"]["modelo"]
+                    salvar_agora(resp, vencedor, prompt)
 
-            #Forçar o recarregamento para mostrar o formulario
+            with col_b:
+                st.subheader("Modelo B")
+                st.info(resp["B"]["texto"])
+                if st.button("Votar no B", use_container_width=True):
+                    vencedor = resp["B"]["modelo"]
+                    salvar_agora(resp, vencedor, prompt)
+            
+            if st.button("Declarar Empate", use_container_width=True):
+                 salvar_agora(resp, "Empate", prompt)
+
+    # Aba 2: Visualização de ranking
+    with tab_ranking:
+        st.header("Leaderboard (Elo Rating)")
+        st.markdown("Sistema Elo com ajuste baseado na força relativa dos oponentes.")
+        
+        df_ranking = calcular_elo_ranking()
+        
+        if not df_ranking.empty:
+            # Visualização gráfica
+            st.bar_chart(df_ranking.set_index("Modelo"), color="#4CAF50")
+            # Tabela detalhada
+            st.dataframe(
+                df_ranking, 
+                use_container_width=True,
+                column_config={
+                    "Elo Score": st.column_config.ProgressColumn(
+                        format="%d", 
+                        min_value=1000, 
+                        max_value=1400
+                    )
+                }
+            )
+        else:
+            st.info("Dados insuficientes para gerar ranking. Realize avaliações na Arena primeiro.")
+
+def salvar_agora(resp, vencedor, prompt):
+    """
+    Persiste voto e reinicia interface para próxima avaliação.
+    
+    Args:
+        resp: Dicionário com respostas dos modelos
+        vencedor: Identificador do modelo vencedor
+        prompt: Texto do prompt utilizado
+    """
+    ma = resp["A"]["modelo"]
+    mb = resp["B"]["modelo"]
+    
+    with st.spinner("Salvando avaliação..."):
+        sucesso = salvar_voto(
+            ma, mb, vencedor, prompt, 
+            resp["A"]["texto"], resp["B"]["texto"], 
+            st.session_state.get('duelo_img_id')
+        )
+        if sucesso:
+            st.toast("Voto registrado com sucesso", icon="✅")
+            time.sleep(1.5)
+            # Limpa estado para próxima rodada
+            del st.session_state['respostas']
+            del st.session_state['duelo_img_bytes']
             st.rerun()
 
-   # 5. Lógica de Exibição e Avaliação (PÓS-RERUN)
-    
-    # Só execute se o botão "Analisar" já foi clicado
-    if st.session_state.get("analysis_run", False):
-        
-        # --- Bloco de Exibição (Lendo do State) ---
-        # Este bloco REDESENHA as respostas (ou erros) nas colunas
-        with col2:
-            st.header("Modelo A")
-            response_a = st.session_state.get("response_a")
-            error_a = st.session_state.get("error_a")
-            
-            if response_a:
-                decode_json(response_a) # <-- Exibe a RESPOSTA salva
-            elif error_a:
-                st.error(f"Erro Modelo A ({st.session_state.model_a}): {error_a}")
-        
-        with col3:
-            st.header("Modelo B")
-            response_b = st.session_state.get("response_b")
-            error_b = st.session_state.get("error_b")
-            
-            if response_b:
-                decode_json(response_b) # <-- Exibe a RESPOSTA salva
-            elif error_b:
-                st.error(f"Erro Modelo B ({st.session_state.model_b}): {error_b}")
-
-        # --- Bloco do Formulário (Decide o que mostrar) ---
-        
-        # Se AMBOS os modelos tiveram sucesso, mostre o formulário
-        if st.session_state.get("analysis_succeeded", False):
-            render_evaluation_form(prompt, temperature)
-        else: 
-            # Se um ou ambos falharam, mostre a mensagem de erro geral
-            st.error("❌ A análise falhou para um ou ambos os modelos.")
-            st.warning("Não é possível registrar uma avaliação para esta execução. Por favor, tente analisar novamente ou use outra imagem.")
-            # (Os erros detalhados já apareceram nas colunas acima)
-   
-
-# --- PONTO DE ENTRADA DO SCRIPT ---
 if __name__ == "__main__":
     main()
