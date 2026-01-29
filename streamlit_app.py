@@ -264,6 +264,93 @@ def salvar_avaliacao(dados: Dict[str, Any]) -> bool:
         return False
 
 
+# --- LÓGICA DE IA (VERSÃO REAL - COM RETRY) ---
+def executar_analise(nome_modelo, prompt, imagem, img_codificada):
+    start = time.time()
+    max_retries = 2
+    # Tempo de espera progressivo para evitar erro de cota
+    tempo_espera = 20 
+
+    for tentativa in range(max_retries):
+        try:
+            # Identifica qual API usar com base no ID definido no init()
+            # 1=OpenAI, 2=Gemini, 3=DeepSeek
+            tipo = st.session_state.modelos_disponiveis.get(nome_modelo)
+            resp = ""
+            
+            # --- TIPO 1: OPENAI (GPT-4o, etc) ---
+            if tipo == 1: 
+                client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+                r = client.chat.completions.create(
+                    model=nome_modelo, 
+                    messages=[{
+                        "role":"user", 
+                        "content":[
+                            {"type":"text","text":prompt},
+                            {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{img_codificada}"}}
+                        ]
+                    }],
+                    temperature=TEMPERATURA_FIXA,
+                    max_tokens=LIMITE_TOKENS
+                )
+                resp = r.choices[0].message.content
+                
+            # --- TIPO 2: GOOGLE GEMINI ---
+            elif tipo == 2: 
+                genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+                config = genai.types.GenerationConfig(
+                    temperature=TEMPERATURA_FIXA,
+                    max_output_tokens=LIMITE_TOKENS
+                )
+                model = genai.GenerativeModel(nome_modelo)
+                # O Gemini aceita a imagem PIL direto, sem base64
+                r = model.generate_content(
+                    [prompt, imagem], 
+                    generation_config=config
+                )
+                resp = r.text
+
+            # --- TIPO 3: DEEPSEEK ---
+            elif tipo == 3: 
+                client = OpenAI(api_key=st.secrets["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com/v1")
+                r = client.chat.completions.create(
+                    model=nome_modelo, 
+                    messages=[{
+                        "role":"user", 
+                        "content":[
+                            {"type":"text","text":prompt},
+                            # Nota: DeepSeek Vision precisa ver se suporta URL base64 na versão atual
+                            {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{img_codificada}"}}
+                        ]
+                    }],
+                    temperature=TEMPERATURA_FIXA,
+                    max_tokens=LIMITE_TOKENS
+                )
+                resp = r.choices[0].message.content
+
+            # SUCESSO: Retorna True, a resposta real e o tempo gasto
+            return True, resp, time.time() - start
+        
+        except Exception as e:
+            erro_msg = str(e)
+            
+            # --- TRATAMENTO DE ERRO DE COTA (429) ---
+            # Se for erro de limite, esperamos e tentamos de novo
+            if ("429" in erro_msg or "quota" in erro_msg or "exhausted" in erro_msg) and tentativa < max_retries - 1:
+                print(f"⚠️ [LOG] Cota excedida no {nome_modelo}. Tentativa {tentativa+1}. Aguardando {tempo_espera}s...")
+                time.sleep(tempo_espera)
+                continue 
+            
+            # --- ERRO FATAL ---
+            # Se não for cota ou se acabaram as tentativas
+            print(f"❌ [LOG] Erro fatal no modelo {nome_modelo}: {erro_msg}")
+            return False, None, time.time() - start
+
+    # Se saiu do loop, falhou em todas as tentativas
+    print(f"❌ [LOG] Falha total no modelo {nome_modelo} após {max_retries} tentativas.")
+    return False, None, time.time() - start
+
+
 # --- INICIALIZAÇÃO ---
 def init():
     if "modelos_disponiveis" not in st.session_state:
