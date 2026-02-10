@@ -57,8 +57,10 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                     "temperature": TEMPERATURA_FIXA,
                     "max_output_tokens": LIMITE_TOKENS,
                 }
+                # Padronização: Base64 explícito para Gemini
+                blob = {"mime_type": "image/jpeg", "data": img_codificada}
                 r = model.generate_content(
-                    [prompt, img_codificada],
+                    [prompt, blob],
                     generation_config=config_simples
                 )
                 resp = r.text
