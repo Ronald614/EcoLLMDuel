@@ -99,6 +99,9 @@ def render_arena():
 
             with col_texto:
                 st.markdown("#### 📝 Prompt Enviado")
+                st.markdown("""<style>
+                    [data-testid="stAppViewContainer"] textarea:disabled { -webkit-text-fill-color: inherit !important; opacity: 1 !important; }
+                </style>""", unsafe_allow_html=True)
                 st.text_area(
                     label="Prompt",
                     value=st.session_state.get("prompt_usado", PROMPT_TEMPLATE),
@@ -145,7 +148,7 @@ def render_arena():
                 # Justificativa obrigatória se "Ambos Ruins"
                 if voto == "Ambos Ruins (Falha Mútua)":
                     st.markdown("**⚠️ AVISO DE QUALIDADE:** Para 'Ambos Ruins', você **DEVE** fornecer a justificativa ou a identificação correta. Isso criará um dataset de correção (Ground Truth).")
-                    obs = st.text_area("Justificativa / Espécie Correta (Obrigatório)*")
+                    obs = st.text_area("Gere uma descrição melhor da imagem (Obrigatório)*")
 
                 if st.button("✅ Confirmar Avaliação", type="primary"):
                     if voto == "Ambos Ruins (Falha Mútua)" and len(obs.strip()) < 10:
