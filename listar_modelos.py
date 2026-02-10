@@ -18,7 +18,7 @@ if "OPENAI_API_KEY" in st.secrets:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         models = sorted(client.models.list(), key=lambda m: m.id)
         
-        vision_keywords = ["gpt-4o", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"]
+        vision_keywords = ["gpt-4o", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-5", "gpt-5-mini"]
         
         data = []
         for m in models:
