@@ -17,14 +17,9 @@ def get_nvidia_client():
         base_url="https://integrate.api.nvidia.com/v1"
     )
 
-@st.cache_resource
-def get_gemini_config():
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    return genai
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_codificada: str, tipo: int):
-    """Versão cacheável de executar_analise. Cache de 1 hora."""
     start = time.time()
     max_retries = 2
     tempo_espera = 20
@@ -50,18 +45,14 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                 resp = r.choices[0].message.content
 
             elif tipo == 2:
-                # LISTA DE CHAVES GEMINI (Failover)
                 keys = []
                 if "GOOGLE_API_KEY" in st.secrets: keys.append(st.secrets["GOOGLE_API_KEY"])
                 if "GOOGLE_API_KEY_2" in st.secrets: keys.append(st.secrets["GOOGLE_API_KEY_2"])
                 
                 if not keys:
-                    print("❌ [LOG] Nenhuma chave Gemini encontrada.")
                     raise Exception("Nenhuma chave Gemini configurada.")
 
                 last_error = None
-                
-                # TENTAR CADA CHAVE
                 for i, api_key in enumerate(keys):
                     try:
                         genai.configure(api_key=api_key)
@@ -71,15 +62,14 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                             "max_output_tokens": LIMITE_TOKENS,
                         }
                         
-                        # Padronização: Base64 explícito para Gemini
                         blob = {"mime_type": "image/jpeg", "data": img_codificada}
                         r = model.generate_content(
                             [prompt, blob],
                             generation_config=config_simples
                         )
                         resp = r.text
-                        last_error = None # Sucesso
-                        break # Sai do loop se funcionar
+                        last_error = None
+                        break
                         
                     except Exception as e:
                         print(f"⚠️ [GEMINI] Chave {i+1} falhou: {e}")
@@ -94,7 +84,6 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
 
 
             elif tipo == 4:
-                # NVIDIA API (NIM)
                 client = get_nvidia_client()
                 r = client.chat.completions.create(
                     model=nome_modelo,
@@ -127,7 +116,6 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
     return False, None, time.time() - start
 
 def executar_analise(nome_modelo, prompt, imagem, img_codificada):
-    """Wrapper que calcula hash da imagem e chama versão cacheada."""
     tipo = st.session_state.modelos_disponiveis.get(nome_modelo)
     img_hash = hashlib.md5(img_codificada.encode()).hexdigest()
     return executar_analise_cached(nome_modelo, prompt, img_hash, img_codificada, tipo)

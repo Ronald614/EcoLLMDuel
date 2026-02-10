@@ -22,11 +22,8 @@ def verificar_perfil(email):
         return None
 
 def salvar_perfil_novo(dados):
-    """Insere um novo usuário na tabela user_profiles."""
     try:
-        # CORREÇÃO: Força o email a ser salvo em minúsculo e sem espaços
         dados["email"] = dados["email"].lower().strip()
-        # Use PostgreSQL upsert to avoid duplicate-key errors: update existing record if email exists
         query = text("""
             INSERT INTO user_profiles (
                 email, name, institution, profession, age, gender,
@@ -54,12 +51,10 @@ def salvar_perfil_novo(dados):
             s.commit()
         return True
     except Exception as e:
-        # If duplicate or other DB errors occur, show a helpful message and return False
         st.error(f"Erro ao salvar perfil: {e}")
         return False
 
 def salvar_avaliacao(dados: Dict[str, Any]) -> bool:
-    """Salva a avaliação completa na tabela evaluations."""
     try:
         query = text("""
             INSERT INTO evaluations (
@@ -79,7 +74,6 @@ def salvar_avaliacao(dados: Dict[str, Any]) -> bool:
             )
         """)
 
-        # Mapping para garantir chaves
         parametros = {
             "evaluator_email": dados["evaluator_email"],
             "image_path": dados["image_name"],

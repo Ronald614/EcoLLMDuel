@@ -4,7 +4,7 @@ import numpy as np
 def calcular_elo(df, k_factor=32):
     if df.empty: return pd.DataFrame()
     
-    # FILTRO CIENTÍFICO: Ignorar "Ambos Ruins" (!A!B)
+    # Ignorar !A!B (Ambos Ruins)
     df = df[df['result_code'] != '!A!B']
     if df.empty: return pd.DataFrame()
 
@@ -15,11 +15,10 @@ def calcular_elo(df, k_factor=32):
         r_a = ratings[row['model_a']]
         r_b = ratings[row['model_b']]
         
-        # Mapeamento de vitórias
         code = row['result_code']
         if code == 'A>B': s_a = 1.0
         elif code == 'A<B': s_a = 0.0
-        else: s_a = 0.5 # A=B e A=B_GOOD contam como empate no Elo
+        else: s_a = 0.5
 
         e_a = 1 / (1 + 10 ** ((r_b - r_a) / 400))
         ratings[row['model_a']] = r_a + k_factor * (s_a - e_a)
@@ -53,7 +52,6 @@ def calcular_bradley_terry(df, iterações=100):
         if code == 'A>B': wins[idx_a][idx_b] += 1
         elif code == 'A<B': wins[idx_b][idx_a] += 1
         else:
-            # A=B e A=B_GOOD contam como meio ponto
             wins[idx_a][idx_b] += 0.5
             wins[idx_b][idx_a] += 0.5
 

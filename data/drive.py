@@ -7,7 +7,6 @@ import io
 from PIL import Image
 
 def get_drive_service():
-    """Autentica e retorna o serviço do Drive."""
     try:
         creds_dict = st.secrets["gcp_service_account"]
         creds = service_account.Credentials.from_service_account_info(
@@ -20,7 +19,6 @@ def get_drive_service():
         return None
 
 def listar_arquivos(service, folder_id):
-    """Lista arquivos e pastas dentro de um ID."""
     try:
         results = service.files().list(
             q=f"'{folder_id}' in parents and trashed=false",
@@ -33,7 +31,6 @@ def listar_arquivos(service, folder_id):
         return []
 
 def baixar_imagem_drive(service, file_id):
-    """Baixa o conteúdo da imagem e converte para PIL Image."""
     try:
         request = service.files().get_media(fileId=file_id)
         file_io = io.BytesIO()
@@ -49,7 +46,6 @@ def baixar_imagem_drive(service, file_id):
         raise e
 
 def obter_imagem_aleatoria():
-    """Busca uma imagem no Google Drive com Rigor Estatístico (Amostragem Hierárquica: Espécie -> Imagem)."""
     service = get_drive_service()
     if not service: return None
 
@@ -59,7 +55,7 @@ def obter_imagem_aleatoria():
         st.error("❌ Configuração ausente: 'DRIVE_FOLDER_ID' não encontrado no secrets.toml")
         return None
 
-    # 1. Listar pastas de espécies
+    # Listar pastas de espécies
     itens_raiz = listar_arquivos(service, root_id)
     if not itens_raiz:
         st.error("❌ A pasta raiz do Drive está vazia ou inacessível.")
@@ -71,12 +67,12 @@ def obter_imagem_aleatoria():
         st.error("❌ Erro de Dados: Não existem subpastas (espécies).")
         return None
 
-    # 2. Sorteio Nível 1: Espécie (Probabilidade uniforme por espécie)
+    # Sorteio: Espécie
     pasta_sorteada = random.choice(pastas)
     nome_especie = pasta_sorteada['name']
     id_pasta = pasta_sorteada['id']
 
-    # 3. Sorteio Nível 2: Imagem
+    # Sorteio: Imagem
     conteudo_pasta = listar_arquivos(service, id_pasta)
     imagens_validas = [i for i in conteudo_pasta if 'image' in i['mimeType']]
 
