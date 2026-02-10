@@ -49,7 +49,7 @@ def baixar_imagem_drive(service, file_id):
         raise e
 
 def obter_imagem_aleatoria():
-    """Busca uma imagem no Google Drive com Rigor Estatístico."""
+    """Busca uma imagem no Google Drive com Rigor Estatístico (Amostragem Hierárquica: Espécie -> Imagem)."""
     service = get_drive_service()
     if not service: return None
 
@@ -59,6 +59,7 @@ def obter_imagem_aleatoria():
         st.error("❌ Configuração ausente: 'DRIVE_FOLDER_ID' não encontrado no secrets.toml")
         return None
 
+    # 1. Listar pastas de espécies
     itens_raiz = listar_arquivos(service, root_id)
     if not itens_raiz:
         st.error("❌ A pasta raiz do Drive está vazia ou inacessível.")
@@ -70,10 +71,12 @@ def obter_imagem_aleatoria():
         st.error("❌ Erro de Dados: Não existem subpastas (espécies).")
         return None
 
+    # 2. Sorteio Nível 1: Espécie (Probabilidade uniforme por espécie)
     pasta_sorteada = random.choice(pastas)
     nome_especie = pasta_sorteada['name']
     id_pasta = pasta_sorteada['id']
 
+    # 3. Sorteio Nível 2: Imagem
     conteudo_pasta = listar_arquivos(service, id_pasta)
     imagens_validas = [i for i in conteudo_pasta if 'image' in i['mimeType']]
 
@@ -82,6 +85,7 @@ def obter_imagem_aleatoria():
         return None
 
     imagem_sorteada = random.choice(imagens_validas)
+    print(f"🎲 Sorteio Hierárquico: {nome_especie} -> {imagem_sorteada['name']}")
 
     try:
         img_pil = baixar_imagem_drive(service, imagem_sorteada['id'])
