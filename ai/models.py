@@ -10,7 +10,6 @@ def get_openai_client():
     return OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 
-
 @st.cache_resource
 def get_nvidia_client():
     return OpenAI(
