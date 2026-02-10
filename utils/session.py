@@ -17,7 +17,7 @@ def init():
              modelos["gpt-4.1"] = 1
              modelos["gpt-4.1-mini"] = 1
              modelos["gpt-4.1-nano"] = 1
-             modelos["gpt-4-turbo"] = 1
+             modelos["gpt-5-mini"] = 1
         
         # Google Gemini (Tipo 2) — TEMPORARIAMENTE DESATIVADO
         # if "GOOGLE_API_KEY" in st.secrets:
