@@ -20,7 +20,7 @@ def init():
              modelos["gpt-5-mini"] = 1
         
         # Google Gemini (Tipo 2)
-        if "GOOGLE_API_KEY" in st.secrets:
+        if "GOOGLE_API_KEY" in st.secrets or "GOOGLE_API_KEY_2" in st.secrets:
             modelos["gemini-2.0-flash"] = 2  # Rápido e gratuito
             modelos["gemini-2.5-flash"] = 2  # Nova geração multimodal
             modelos["gemini-2.5-flash-lite"] = 2 # Versão Lite

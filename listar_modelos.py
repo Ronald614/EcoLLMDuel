@@ -85,9 +85,11 @@ st.divider()
 # 3. Google Gemini
 # ============================================================
 st.header("3️⃣ Google Gemini")
-if "GOOGLE_API_KEY" in st.secrets:
+if "GOOGLE_API_KEY" in st.secrets or "GOOGLE_API_KEY_2" in st.secrets:
     try:
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+        # Tenta usar a primeira chave disponível
+        chave_gemini = st.secrets.get("GOOGLE_API_KEY", st.secrets.get("GOOGLE_API_KEY_2"))
+        genai.configure(api_key=chave_gemini)
         models = genai.list_models()
         
         data = []

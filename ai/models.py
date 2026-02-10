@@ -50,19 +50,46 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                 resp = r.choices[0].message.content
 
             elif tipo == 2:
-                genai_client = get_gemini_config()
-                model = genai_client.GenerativeModel(nome_modelo)
-                config_simples = {
-                    "temperature": TEMPERATURA_FIXA,
-                    "max_output_tokens": LIMITE_TOKENS,
-                }
-                # Padronização: Base64 explícito para Gemini
-                blob = {"mime_type": "image/jpeg", "data": img_codificada}
-                r = model.generate_content(
-                    [prompt, blob],
-                    generation_config=config_simples
-                )
-                resp = r.text
+                # LISTA DE CHAVES GEMINI (Failover)
+                keys = []
+                if "GOOGLE_API_KEY" in st.secrets: keys.append(st.secrets["GOOGLE_API_KEY"])
+                if "GOOGLE_API_KEY_2" in st.secrets: keys.append(st.secrets["GOOGLE_API_KEY_2"])
+                
+                if not keys:
+                    print("❌ [LOG] Nenhuma chave Gemini encontrada.")
+                    raise Exception("Nenhuma chave Gemini configurada.")
+
+                last_error = None
+                
+                # TENTAR CADA CHAVE
+                for i, api_key in enumerate(keys):
+                    try:
+                        genai.configure(api_key=api_key)
+                        model = genai.GenerativeModel(nome_modelo)
+                        config_simples = {
+                            "temperature": TEMPERATURA_FIXA,
+                            "max_output_tokens": LIMITE_TOKENS,
+                        }
+                        
+                        # Padronização: Base64 explícito para Gemini
+                        blob = {"mime_type": "image/jpeg", "data": img_codificada}
+                        r = model.generate_content(
+                            [prompt, blob],
+                            generation_config=config_simples
+                        )
+                        resp = r.text
+                        last_error = None # Sucesso
+                        break # Sai do loop se funcionar
+                        
+                    except Exception as e:
+                        print(f"⚠️ [GEMINI] Chave {i+1} falhou: {e}")
+                        last_error = e
+                        if i < len(keys) - 1:
+                            print(f"🔄 Tentando próxima chave...")
+                            continue
+                
+                if last_error:
+                    raise last_error
 
 
 
