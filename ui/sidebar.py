@@ -20,16 +20,14 @@ def renderizar_sidebar():
         else:
             st.warning("Usuário não identificado.")
         
-        # === HISTÓRICO DE DUELOS ===
+        # === ÚLTIMO DUELO (só aparece após avaliar) ===
         historico = st.session_state.get("historico_duelos", [])
         if historico:
             st.divider()
-            st.markdown("### 📜 Últimos Duelos")
-            for i, d in enumerate(historico):
-                status_a = "✅" if d["suc_a"] else "❌"
-                status_b = "✅" if d["suc_b"] else "❌"
-                st.caption(
-                    f"**#{i+1}** {d['especie']}\n\n"
-                    f"{status_a} `{d['modelo_a']}`\n\n"
-                    f"{status_b} `{d['modelo_b']}`"
-                )
+            st.markdown("### 🔓 Último Duelo")
+            d = historico[0]
+            st.caption(
+                f"**Espécie:** {d['especie']}\n\n"
+                f"🅰️ `{d['modelo_a']}`\n\n"
+                f"🅱️ `{d['modelo_b']}`"
+            )
