@@ -86,6 +86,9 @@ def init():
             "suc_a": False,                 # Bool sucesso modelo A
             "suc_b": False,                 # Bool sucesso modelo B
             
+            # ===== HISTÓRICO DE DUELOS =====
+            "historico_duelos": [],          # Lista dos últimos duelos
+            
             # ===== MARKER DE INICIALIZAÇÃO =====
             "initialization_complete": True
         })

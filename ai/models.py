@@ -98,13 +98,8 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
     print(f"❌ [LOG] Falha total no modelo {nome_modelo} após {max_retries} tentativas.")
     return False, None, time.time() - start
 
-def executar_analise(nome_modelo, prompt, imagem, img_codificada, show_spinner=True):
+def executar_analise(nome_modelo, prompt, imagem, img_codificada):
     """Wrapper que calcula hash da imagem e chama versão cacheada."""
     tipo = st.session_state.modelos_disponiveis.get(nome_modelo)
     img_hash = hashlib.md5(img_codificada.encode()).hexdigest()
-    
-    if show_spinner:
-        return executar_analise_cached(nome_modelo, prompt, img_hash, img_codificada, tipo)
-    else:
-        # Desativa o spinner interno do cache
-        return executar_analise_cached(nome_modelo, prompt, img_hash, img_codificada, tipo)
+    return executar_analise_cached(nome_modelo, prompt, img_hash, img_codificada, tipo)
