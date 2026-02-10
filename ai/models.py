@@ -30,6 +30,8 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
 
             if tipo == 1:
                 client = get_openai_client()
+                # Modelos novos (gpt-5*) usam max_completion_tokens
+                token_param = "max_completion_tokens" if nome_modelo.startswith("gpt-5") else "max_tokens"
                 r = client.chat.completions.create(
                     model=nome_modelo,
                     messages=[{
@@ -40,7 +42,7 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                         ]
                     }],
                     temperature=TEMPERATURA_FIXA,
-                    max_tokens=LIMITE_TOKENS
+                    **{token_param: LIMITE_TOKENS}
                 )
                 resp = r.choices[0].message.content
 

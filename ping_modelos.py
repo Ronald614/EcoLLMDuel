@@ -46,11 +46,19 @@ st.info(f"📋 {len(modelos)} modelos para testar.")
 
 def ping_openai(nome_modelo):
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    client.chat.completions.create(
-        model=nome_modelo,
-        messages=[{"role": "user", "content": "ping"}],
-        max_tokens=1
-    )
+    # Modelos novos (gpt-5*) usam max_completion_tokens
+    if nome_modelo.startswith("gpt-5"):
+        client.chat.completions.create(
+            model=nome_modelo,
+            messages=[{"role": "user", "content": "ping"}],
+            max_completion_tokens=1
+        )
+    else:
+        client.chat.completions.create(
+            model=nome_modelo,
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=1
+        )
 
 def ping_nvidia(nome_modelo):
     client = OpenAI(
