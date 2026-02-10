@@ -73,8 +73,7 @@ def render_arena():
                 st.session_state.modelo_a, 
                 prompt_com_especie, 
                 st.session_state.imagem, 
-                enc,
-                show_spinner=False
+                enc
             )
             time.sleep(1)  # Pequeno delay entre chamadas
             
@@ -82,8 +81,7 @@ def render_arena():
                 st.session_state.modelo_b, 
                 prompt_com_especie, 
                 st.session_state.imagem, 
-                enc,
-                show_spinner=False
+                enc
             )
             
             # 2.5: Atualizar estado com resultados
@@ -96,6 +94,16 @@ def render_arena():
                 "suc_b": sb,
                 "analise_executada": True
             })
+            
+            # 2.6: Salvar no histórico (últimos 10)
+            st.session_state.historico_duelos.insert(0, {
+                "modelo_a": st.session_state.modelo_a,
+                "modelo_b": st.session_state.modelo_b,
+                "especie": especie,
+                "suc_a": sa,
+                "suc_b": sb
+            })
+            st.session_state.historico_duelos = st.session_state.historico_duelos[:10]
         
         st.rerun()  # ← ÚNICO rerun autorizado na lógica
     
@@ -157,7 +165,7 @@ def render_arena():
                 if voto == "Ambos Ruins":
                     obs = st.text_area("Qual a espécie correta / O que está errado? (Obrigatório)")
 
-                if st.button("✅ Confirmar Avaliação", type="primary", use_container_width=True):
+                if st.button("✅ Confirmar Avaliação", type="primary"):
                     # Validação de campo obrigatório
                     if voto == "Ambos Ruins" and not obs.strip():
                         st.error("⚠️ Para classificar como 'Ambos Ruins', é obrigatório informar o motivo ou a espécie correta.")

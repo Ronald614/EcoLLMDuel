@@ -2,7 +2,7 @@ import streamlit as st
 
 def renderizar_sidebar():
     with st.sidebar:
-        st.image("https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg", width=100)
+        st.markdown("### 🛡️ EcoLLM Arena")
 
         if st.session_state.usuario_info.get("is_logged_in", False):
             st.markdown(f"""
@@ -19,3 +19,17 @@ def renderizar_sidebar():
                 st.logout()
         else:
             st.warning("Usuário não identificado.")
+        
+        # === HISTÓRICO DE DUELOS ===
+        historico = st.session_state.get("historico_duelos", [])
+        if historico:
+            st.divider()
+            st.markdown("### 📜 Últimos Duelos")
+            for i, d in enumerate(historico):
+                status_a = "✅" if d["suc_a"] else "❌"
+                status_b = "✅" if d["suc_b"] else "❌"
+                st.caption(
+                    f"**#{i+1}** {d['especie']}\n\n"
+                    f"{status_a} `{d['modelo_a']}`\n\n"
+                    f"{status_b} `{d['modelo_b']}`"
+                )
