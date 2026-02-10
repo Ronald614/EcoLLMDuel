@@ -1,0 +1,36 @@
+# --- CONSTANTES ---
+from ai.prompt import PROMPT_TEMPLATE
+TEMPERATURA_FIXA = 0.7
+LIMITE_TOKENS = 4096
+
+# --- CSS ---
+CSS_STYLES = """
+<style>
+    .block-container {padding-top: 2rem; padding-bottom: 2rem;}
+    h1 {text-align: center; color: #000;}
+    
+    /* Texto preto e maior em todo o app */
+    .stMarkdown, .stText, .stCaption, p, span, label, li {
+        color: #000 !important;
+        font-size: 1.1rem !important;
+    }
+    h2, h3, h4 { color: #000 !important; }
+    
+    /* JSON e código com texto maior */
+    .stJson, pre, code { font-size: 1.05rem !important; }
+    
+    /* Radio buttons e labels */
+    .stRadio label, .stTextArea label { 
+        color: #000 !important; 
+        font-size: 1.15rem !important; 
+    }
+    
+    .profile-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 15px; border-radius: 10px;
+        text-align: center; color: white !important; margin-bottom: 20px;
+    }
+    .profile-card * { color: white !important; }
+    .stButton > button {width: 100%; border-radius: 8px; font-size: 1.1rem !important;}
+</style>
+"""

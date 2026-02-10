@@ -1,97 +1,113 @@
+"""
+Listar Modelos Disponíveis — OpenAI, NVIDIA, Google Gemini
+Roda com: streamlit run listar_modelos.py
+"""
 import streamlit as st
 from openai import OpenAI
 import google.generativeai as genai
 
-# Configuração da página
-st.set_page_config(page_title="Verificador de Modelos", page_icon="🔍")
-st.title("🔍 Verificador de Modelos Disponíveis")
+st.set_page_config(page_title="Listar Modelos", page_icon="📋", layout="wide")
+st.title("📋 Modelos Disponíveis por API")
 
-def list_openai_models():
-    """Busca e exibe os modelos disponíveis da OpenAI."""
-    st.header("OpenAI")
-    
-    # Tenta pegar a chave do secrets.toml
+# ============================================================
+# 1. OpenAI
+# ============================================================
+st.header("1️⃣ OpenAI")
+if "OPENAI_API_KEY" in st.secrets:
     try:
-        api_key = st.secrets["OPENAI_API_KEY"]
-    except KeyError:
-        st.error("❌ Chave 'OPENAI_API_KEY' não encontrada no secrets.toml")
-        return
-
-    try:
-        client = OpenAI(api_key=api_key)
-        models_list = client.models.list()
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        models = sorted(client.models.list(), key=lambda m: m.id)
         
-        st.success(f"✅ Conectado! Encontrados {len(list(models_list))} modelos.")
+        vision_keywords = ["gpt-4o", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"]
         
-        # Cria uma lista expansível para não poluir a tela
-        with st.expander("Ver lista completa da OpenAI"):
-            # A API retorna um objeto paginado, iteramos sobre ele
-            for model in sorted(models_list, key=lambda m: m.id):
-                st.code(model.id, language="text")
-                
+        data = []
+        for m in models:
+            is_multi = any(kw in m.id for kw in vision_keywords)
+            data.append({
+                "Modelo": m.id,
+                "Multimodal (Imagem)": "✅ Sim" if is_multi else "❌ Não"
+            })
+        
+        st.success(f"✅ Conectado! {len(models)} modelos encontrados.")
+        st.dataframe(data, width='stretch', hide_index=True)
     except Exception as e:
-        st.error(f"Erro ao conectar na OpenAI: {e}")
+        st.error(f"Erro OpenAI: {e}")
+else:
+    st.warning("⚠️ OPENAI_API_KEY não configurada.")
 
-def list_gemini_models():
-    """Busca e exibe os modelos disponíveis do Google Gemini."""
-    st.header("Google Gemini")
+st.divider()
 
+# ============================================================
+# 2. NVIDIA (NIM)
+# ============================================================
+st.header("2️⃣ NVIDIA (NIM)")
+if "NVIDIA_API_KEY" in st.secrets:
     try:
-        api_key = st.secrets["GOOGLE_API_KEY"]
-    except KeyError:
-        st.error("❌ Chave 'GOOGLE_API_KEY' não encontrada no secrets.toml")
-        return
-
-    try:
-        genai.configure(api_key=api_key)
+        client = OpenAI(
+            api_key=st.secrets["NVIDIA_API_KEY"],
+            base_url="https://integrate.api.nvidia.com/v1"
+        )
+        models = sorted(client.models.list(), key=lambda m: m.id)
         
-        st.write("Modelos que suportam geração de conteúdo:")
-        modelos_encontrados = []
+        # Modelos conhecidos como multimodais (Image-to-Text)
+        vision_known = [
+            "llama-3.2-90b-vision", "llama-3.2-11b-vision",
+            "llama-4-maverick", "llama-4-scout",
+            "kimi-k2.5", "phi-4-multimodal", "phi-3.5-vision",
+            "gemma-3-27b", "mistral-large-3-675b", "ministral-14b",
+            "mistral-medium-3", "neva"
+        ]
         
-        for model in genai.list_models():
-            if 'generateContent' in model.supported_generation_methods:
-                modelos_encontrados.append(model.name)
+        data = []
+        for m in models:
+            is_multi = any(kw in m.id for kw in vision_known)
+            data.append({
+                "Modelo": m.id,
+                "Multimodal (Imagem)": "✅ Sim" if is_multi else "❌ Não"
+            })
         
-        st.success(f"✅ Conectado! Encontrados {len(modelos_encontrados)} modelos compatíveis.")
+        st.success(f"✅ Conectado! {len(models)} modelos encontrados.")
         
-        with st.expander("Ver lista completa do Gemini"):
-            for nome in sorted(modelos_encontrados):
-                st.code(nome, language="text")
-                
+        # Filtro
+        filtro = st.radio("Filtrar:", ["Todos", "Só Multimodais"], horizontal=True, key="nvidia_filter")
+        if filtro == "Só Multimodais":
+            data = [d for d in data if d["Multimodal (Imagem)"] == "✅ Sim"]
+        
+        st.dataframe(data, width='stretch', hide_index=True)
     except Exception as e:
-        st.error(f"Erro ao conectar no Google Gemini: {e}")
+        st.error(f"Erro NVIDIA: {e}")
+else:
+    st.warning("⚠️ NVIDIA_API_KEY não configurada.")
 
-def list_deepseek_models():
-    """Busca e exibe os modelos disponíveis da DeepSeek."""
-    st.header("DeepSeek")
+st.divider()
 
+# ============================================================
+# 3. Google Gemini
+# ============================================================
+st.header("3️⃣ Google Gemini")
+if "GOOGLE_API_KEY" in st.secrets:
     try:
-        api_key = st.secrets["DEEPSEEK_API_KEY"]
-    except KeyError:
-        st.error("❌ Chave 'DEEPSEEK_API_KEY' não encontrada no secrets.toml")
-        return
-
-    try:
-        # DeepSeek usa a mesma lib da OpenAI, mas com base_url diferente
-        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
-        models_list = client.models.list()
+        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+        models = genai.list_models()
         
-        st.success(f"✅ Conectado! Encontrados modelos.")
+        data = []
+        for m in models:
+            methods = m.supported_generation_methods if hasattr(m, 'supported_generation_methods') else []
+            is_multi = "generateContent" in methods
+            data.append({
+                "Modelo": m.name,
+                "Multimodal (Imagem)": "✅ Sim" if is_multi else "❌ Não",
+                "Métodos": ", ".join(methods) if methods else "—"
+            })
         
-        with st.expander("Ver lista completa da DeepSeek"):
-            for model in sorted(models_list, key=lambda m: m.id):
-                st.code(model.id, language="text")
-                
+        st.success(f"✅ Conectado! {len(data)} modelos encontrados.")
+        
+        filtro = st.radio("Filtrar:", ["Todos", "Só Multimodais"], horizontal=True, key="gemini_filter")
+        if filtro == "Só Multimodais":
+            data = [d for d in data if d["Multimodal (Imagem)"] == "✅ Sim"]
+        
+        st.dataframe(data, width='stretch', hide_index=True)
     except Exception as e:
-        st.error(f"Erro ao conectar na DeepSeek: {e}")
-
-if __name__ == "__main__":
-    # Botão para rodar a verificação
-    if st.button("🔄 Listar Todos os Modelos Agora", type="primary"):
-        list_openai_models()
-        st.divider()
-        list_gemini_models()
-        st.divider()
-        list_deepseek_models()
-    else:
-        st.info("Clique no botão acima para buscar os modelos usando suas chaves do secrets.toml")
+        st.error(f"Erro Gemini: {e}")
+else:
+    st.warning("⚠️ GOOGLE_API_KEY não configurada.")

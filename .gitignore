@@ -1,17 +1,100 @@
-#Ignorar os pastas com o dataset
-#mamiraua/
+# =============================================
+# Dataset e Imagens
+# =============================================
+mamiraua/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
 
-#Ignorar o ambiente virtual
+# =============================================
+# Ambiente Virtual e Dependências
+# =============================================
 env/
-
-# Ignorar o diretório de segredos do Streamlit
-/.streamlit/secrets.toml
-
-# Ignorar ambientes virtuais do Python
-.venv/
 venv/
+.venv/
+ENV/
 *.venv
+.env
 
-# Ignorar caches do Python
+# =============================================
+# Segredos e Credenciais
+# =============================================
+.streamlit/secrets.toml
+secrets.toml
+.env.local
+.env.*.local
+credentials.json
+
+# =============================================
+# Python e Cache
+# =============================================
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =============================================
+# IDE e Editores
+# =============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# =============================================
+# Banco de Dados
+# =============================================
+*.db
+*.sqlite
+*.sqlite3
+*.pgsql
+
+# =============================================
+# Logs
+# =============================================
+*.log
+logs/
+.streamlit/logger.log
+
+# =============================================
+# Arquivos Temporários
+# =============================================
+*.tmp
+*.temp
+*.bak
+.ipynb_checkpoints/
+*.ipynb
+
+# =============================================
+# Node (se usado para frontend)
+# =============================================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# =============================================
+# Diversos e Segurança Adicional
+# =============================================
+.DS_Store
+*.pyc
+.env.example
+*.log
+.mypy_cache/
+.streamlit/secrets.toml
+coverage.xml
