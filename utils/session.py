@@ -1,13 +1,9 @@
 import streamlit as st
 
 def init():
-    """
-    Inicializa variáveis de session_state.
-    Garante que todas as chaves existam para evitar KeyError.
-    """
     
     if "initialization_complete" not in st.session_state:
-        # Detectar modelos disponíveis
+        # Detectar modelos
         modelos = {}
         
         # OpenAI (Tipo 1)
@@ -21,10 +17,9 @@ def init():
         
         # Google Gemini (Tipo 2)
         if "GOOGLE_API_KEY" in st.secrets or "GOOGLE_API_KEY_2" in st.secrets:
-            modelos["gemini-2.0-flash"] = 2  # Rápido e gratuito
-            modelos["gemini-2.5-flash"] = 2  # Nova geração multimodal
-            modelos["gemini-2.5-flash-lite"] = 2 # Versão Lite
-            # modelos["gemini-3-flash"] = 2 # (Opcional: se disponível na API)
+            modelos["gemini-2.0-flash"] = 2
+            modelos["gemini-2.5-flash"] = 2
+            modelos["gemini-2.5-flash-lite"] = 2
 
 
         # NVIDIA API (Tipo 4)
@@ -46,50 +41,35 @@ def init():
             # Kimi (via NVIDIA API)
             modelos["moonshotai/kimi-k2.5"] = 4
 
-        # Sem modelos = erro fatal
+        # Sem modelos = erro
         if not modelos:
             st.error("❌ Nenhuma chave de API configurada no secrets.toml. Adicione pelo menos uma (GOOGLE_API_KEY, NVIDIA_API_KEY, etc).")
             st.stop()
 
         st.session_state.update({
-            # ===== AUTENTICAÇÃO =====
             "usuario_info": {
                 "name": None,
                 "email": None,
                 "is_logged_in": False
             },
             "detalhes_usuario": None,
-            
-            # ===== CONFIGURAÇÃO DE MODELOS =====
             "modelos_disponiveis": modelos,
 
-            
-            # ===== ARENA: FLAGS DE CONTROLE =====
-            "duelo_ativo": False,           # Flag: duelo foi iniciado
-            "analise_executada": False,     # Flag: análise completa
-            "avaliacao_enviada": False,     # Flag: voto registrado
-            
-            # ===== ARENA: ESTADO DE IMAGEM =====
-            "imagem": None,                 # PIL Image
-            "id_imagem": None,              # String ID
-            "nome_imagem": None,            # String nome arquivo
-            "pasta_especie": None,          # String espécie
-            
-            # ===== ARENA: MODELOS SELECIONADOS =====
-            "modelo_a": None,               # String nome modelo A
-            "modelo_b": None,               # String nome modelo B
-            
-            # ===== ARENA: RESPOSTAS DOS MODELOS =====
-            "resp_a": None,                 # String resposta modelo A
-            "resp_b": None,                 # String resposta modelo B
-            "time_a": 0.0,                  # Float latência modelo A (segundos)
-            "time_b": 0.0,                  # Float latência modelo B (segundos)
-            "suc_a": False,                 # Bool sucesso modelo A
-            "suc_b": False,                 # Bool sucesso modelo B
-            
-            # ===== HISTÓRICO DE DUELOS =====
-            "historico_duelos": [],          # Lista dos últimos duelos
-            
-            # ===== MARKER DE INICIALIZAÇÃO =====
+            "duelo_ativo": False,
+            "analise_executada": False,
+            "avaliacao_enviada": False,
+            "imagem": None,
+            "id_imagem": None,
+            "nome_imagem": None,
+            "pasta_especie": None,
+            "modelo_a": None,
+            "modelo_b": None,
+            "resp_a": None,
+            "resp_b": None,
+            "time_a": 0.0,
+            "time_b": 0.0,
+            "suc_a": False,
+            "suc_b": False,
+            "historico_duelos": [],
             "initialization_complete": True
         })

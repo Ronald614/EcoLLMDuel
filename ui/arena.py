@@ -10,18 +10,9 @@ from data.drive import obter_imagem_aleatoria
 from config import TEMPERATURA_FIXA
 
 def render_arena():
-    """
-    Arena de Duelo - padrão reativo Streamlit.
-    
-    Fluxo:
-    1. Desencadeador: Usuário clica em "Sortear Novo Duelo"
-    2. Lógica: Se duelo_ativo e não analise_executada, rodar análise
-    3. Renderização: Mostrar resultados baseado em estado
-    """
     st.caption("Compare modelos e ajude a classificar a melhor IA para biologia.")
 
-    # ===== CAMADA 1: DESENCADEADORES =====
-    # Travar botão enquanto análise está rodando
+    # Travar botão durante processamento
     processando = st.session_state.duelo_ativo and not st.session_state.analise_executada
     
     if st.button("🔄 Sortear Novo Duelo", type="primary", disabled=processando):
@@ -30,11 +21,9 @@ def render_arena():
         st.session_state.avaliacao_enviada = False
         st.rerun()
     
-    # ===== CAMADA 2: LÓGICA (Estado → Cálculos) =====
-    # Se duelo foi acionado mas análise não foi feita, executar
+    # Executar análise se duelo ativo e pendente
     if st.session_state.duelo_ativo and not st.session_state.analise_executada:
         with st.spinner("Carregando duelo..."):
-            # 2.1: Carregar imagem aleatória
             dados_img = obter_imagem_aleatoria()
             
             if not dados_img:
@@ -48,7 +37,7 @@ def render_arena():
             st.session_state.pasta_especie = especie
             st.session_state.id_imagem = id_arq
             
-            # 2.2: Selecionar 2 modelos aleatoriamente
+            # Selecionar 2 modelos
             mods = list(st.session_state.modelos_disponiveis.keys())
             if len(mods) < 2:
                 st.error("❌ Não há modelos suficientes configurados (mínimo 2).")
@@ -57,18 +46,15 @@ def render_arena():
             
             st.session_state.modelo_a, st.session_state.modelo_b = random.sample(mods, 2)
             
-            # LOG: Modelos sorteados
+            # LOG
             print(f"🎲 [DUELO] Modelo A: {st.session_state.modelo_a} | Modelo B: {st.session_state.modelo_b}")
             print(f"📸 [DUELO] Espécie: {especie} | Imagem: {nome_arq}")
             
-            # 2.3: Codificar imagem
             enc = codificar_imagem(st.session_state.imagem)
             
-            # 2.4: Montar prompt com nome da espécie
             prompt_com_especie = PROMPT_TEMPLATE + f"\nConsiderando a espécie '{especie}' pertencente à imagem, utilize essa informação como contexto adicional para sua análise."
             st.session_state.prompt_usado = prompt_com_especie
             
-            # 2.5: Executar análise nos dois modelos
             sa, ra, ta = executar_analise(
                 st.session_state.modelo_a, 
                 prompt_com_especie, 
@@ -84,7 +70,6 @@ def render_arena():
                 enc
             )
             
-            # 2.5: Atualizar estado com resultados
             st.session_state.update({
                 "resp_a": ra, 
                 "time_a": ta, 
@@ -95,10 +80,9 @@ def render_arena():
                 "analise_executada": True
             })
         
-        st.rerun()  # ← ÚNICO rerun autorizado na lógica
+        st.rerun()
     
-    # ===== CAMADA 3: RENDERIZAÇÃO (Estado → UI) =====
-    # Mostrar resultados APENAS se análise foi executada
+    # Mostrar resultados
     if st.session_state.analise_executada and st.session_state.imagem:
         sucesso_total = st.session_state.suc_a and st.session_state.suc_b
 
@@ -145,7 +129,7 @@ def render_arena():
                 st.divider()
                 st.markdown("### 👨‍⚖️ Qual seu veredito?")
 
-                # Lógica de Votação (5 Opções Científicas)
+                # Votação
                 voto = st.radio("Qual modelo descreveu melhor?",
                                 [
                                     "Modelo A (Vitória)", 
@@ -158,7 +142,7 @@ def render_arena():
                                 horizontal=True)
 
                 obs = ""
-                # Campo condicional: Obrigatório se "Ambos Ruins"
+                # Justificativa obrigatória se "Ambos Ruins"
                 if voto == "Ambos Ruins (Falha Mútua)":
                     st.markdown("**⚠️ AVISO DE QUALIDADE:** Para 'Ambos Ruins', você **DEVE** fornecer a justificativa ou a identificação correta. Isso criará um dataset de correção (Ground Truth).")
                     obs = st.text_area("Justificativa / Espécie Correta (Obrigatório)*")
@@ -166,13 +150,11 @@ def render_arena():
                     obs = st.text_area("Comentários (Opcional)")
 
                 if st.button("✅ Confirmar Avaliação", type="primary"):
-                    # Validação de campo obrigatório (Regra 3)
                     if voto == "Ambos Ruins (Falha Mútua)" and len(obs.strip()) < 10:
                         st.error("⚠️ Para classificar como 'Ambos Ruins', a justificativa é OBRIGATÓRIA e deve ter conteúdo relevante.")
                         st.stop()
                     
                     elif voto:
-                        # Mapeamento Científico (Regra 4)
                         mapa_voto = {
                             "Modelo A (Vitória)": "A>B", 
                             "Modelo B (Vitória)": "A<B", 
@@ -183,7 +165,6 @@ def render_arena():
                         
                         codigo_resultado = mapa_voto[voto]
 
-                        # Preparar dados para salvar
                         email = st.session_state.usuario_info.get("email", "")
                         if email:
                             email = email.lower().strip()
@@ -211,11 +192,9 @@ def render_arena():
                             "temperature": TEMPERATURA_FIXA
                         }
                         
-                        # Tentar salvar no banco
                         try:
                             if salvar_avaliacao(dados_salvar):
                                 st.session_state.avaliacao_enviada = True
-                                # Salvar no histórico APÓS o voto (teste cego preservado)
                                 st.session_state.historico_duelos = [{
                                     "modelo_a": st.session_state.modelo_a,
                                     "modelo_b": st.session_state.modelo_b,
@@ -231,7 +210,6 @@ def render_arena():
                             st.error(f"❌ Erro na operação: {str(e)[:100]}")
 
         else:
-            # Mostrar erro se um dos modelos falhou
             st.error("⚠️ Duelo cancelado: Um ou ambos os modelos falharam na análise.")
             detalhes = []
             if not st.session_state.suc_a: 
