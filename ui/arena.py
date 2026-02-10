@@ -94,16 +94,6 @@ def render_arena():
                 "suc_b": sb,
                 "analise_executada": True
             })
-            
-            # 2.6: Salvar no histórico (últimos 10)
-            st.session_state.historico_duelos.insert(0, {
-                "modelo_a": st.session_state.modelo_a,
-                "modelo_b": st.session_state.modelo_b,
-                "especie": especie,
-                "suc_a": sa,
-                "suc_b": sb
-            })
-            st.session_state.historico_duelos = st.session_state.historico_duelos[:10]
         
         st.rerun()  # ← ÚNICO rerun autorizado na lógica
     
@@ -211,6 +201,12 @@ def render_arena():
                         try:
                             if salvar_avaliacao(dados_salvar):
                                 st.session_state.avaliacao_enviada = True
+                                # Salvar no histórico APÓS o voto (teste cego preservado)
+                                st.session_state.historico_duelos = [{
+                                    "modelo_a": st.session_state.modelo_a,
+                                    "modelo_b": st.session_state.modelo_b,
+                                    "especie": st.session_state.pasta_especie
+                                }]
                                 st.success("🎉 Avaliação Registrada! Obrigado por contribuir.")
                                 st.info(f"🔓 **Revelação:** A = {st.session_state.modelo_a} | B = {st.session_state.modelo_b}")
                                 time.sleep(2)
