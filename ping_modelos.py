@@ -17,7 +17,7 @@ modelos = {}
 
 # OpenAI (Tipo 1)
 if "OPENAI_API_KEY" in st.secrets:
-    for m in ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4-turbo"]:
+    for m in ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-5-mini"]:
         modelos[m] = "openai"
 
 # NVIDIA (Tipo 4)
@@ -38,8 +38,8 @@ if "NVIDIA_API_KEY" in st.secrets:
         modelos[m] = "nvidia"
 
 # Google Gemini (Tipo 2)
-if "GOOGLE_API_KEY" in st.secrets:
-    for m in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]:
+if "GOOGLE_API_KEY" in st.secrets or "GOOGLE_API_KEY_2" in st.secrets:
+    for m in ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"]:
         modelos[m] = "gemini"
 
 st.info(f"📋 {len(modelos)} modelos para testar.")

@@ -4,14 +4,14 @@ import numpy as np
 def calcular_elo(df, k_factor=32):
     if df.empty: return pd.DataFrame()
     
-    # Ignorar !A!B (Ambos Ruins)
-    df = df[df['result_code'] != '!A!B']
-    if df.empty: return pd.DataFrame()
-
+    # Coletar TODOS os modelos antes de filtrar
     todos_modelos = set(df['model_a'].unique()) | set(df['model_b'].unique())
     ratings = {model: 1000.0 for model in todos_modelos}
 
-    for _, row in df.iterrows():
+    # Ignorar !A!B (Ambos Ruins) apenas para o cálculo
+    df_valido = df[df['result_code'] != '!A!B']
+
+    for _, row in df_valido.iterrows():
         r_a = ratings[row['model_a']]
         r_b = ratings[row['model_b']]
         
@@ -32,17 +32,19 @@ def calcular_elo(df, k_factor=32):
 def calcular_bradley_terry(df, iterações=100):
     if df.empty: return pd.DataFrame()
     
-    # FILTRO CIENTÍFICO: Ignorar "Ambos Ruins" (!A!B)
-    df = df[df['result_code'] != '!A!B']
-    if df.empty: return pd.DataFrame()
+    # Coletar TODOS os modelos antes de filtrar
+    todos_modelos = list(set(df['model_a'].unique()) | set(df['model_b'].unique()))
 
-    models = list(set(df['model_a'].unique()) | set(df['model_b'].unique()))
+    # Filtrar !A!B apenas para o cálculo
+    df_valido = df[df['result_code'] != '!A!B']
+
+    models = todos_modelos
     n_models = len(models)
     model_to_idx = {m: i for i, m in enumerate(models)}
     wins = np.zeros((n_models, n_models))
     matches = np.zeros((n_models, n_models))
 
-    for _, row in df.iterrows():
+    for _, row in df_valido.iterrows():
         idx_a = model_to_idx[row['model_a']]
         idx_b = model_to_idx[row['model_b']]
         matches[idx_a][idx_b] += 1
