@@ -146,8 +146,6 @@ def render_arena():
                 if voto == "Ambos Ruins (Falha Mútua)":
                     st.markdown("**⚠️ AVISO DE QUALIDADE:** Para 'Ambos Ruins', você **DEVE** fornecer a justificativa ou a identificação correta. Isso criará um dataset de correção (Ground Truth).")
                     obs = st.text_area("Justificativa / Espécie Correta (Obrigatório)*")
-                else:
-                    obs = st.text_area("Comentários (Opcional)")
 
                 if st.button("✅ Confirmar Avaliação", type="primary"):
                     if voto == "Ambos Ruins (Falha Mútua)" and len(obs.strip()) < 10:
