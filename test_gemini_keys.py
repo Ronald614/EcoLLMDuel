@@ -9,7 +9,7 @@ st.set_page_config(page_title="Teste Gemini", page_icon="🔑")
 st.title("🔑 Diagnóstico de Chaves Gemini")
 
 # Modelos exatos usados no session.py (Tipo 2)
-MODELOS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+MODELOS = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
 
 # Chaves disponíveis
 chaves = {}
