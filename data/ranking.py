@@ -3,15 +3,23 @@ import numpy as np
 
 def calcular_elo(df, k_factor=32):
     if df.empty: return pd.DataFrame()
+    
+    # FILTRO CIENTÍFICO: Ignorar "Ambos Ruins" (!A!B)
+    df = df[df['result_code'] != '!A!B']
+    if df.empty: return pd.DataFrame()
+
     todos_modelos = set(df['model_a'].unique()) | set(df['model_b'].unique())
     ratings = {model: 1000.0 for model in todos_modelos}
 
     for _, row in df.iterrows():
         r_a = ratings[row['model_a']]
         r_b = ratings[row['model_b']]
-        if row['result_code'] == 'A>B': s_a = 1.0
-        elif row['result_code'] == 'A<B': s_a = 0.0
-        else: s_a = 0.5
+        
+        # Mapeamento de vitórias
+        code = row['result_code']
+        if code == 'A>B': s_a = 1.0
+        elif code == 'A<B': s_a = 0.0
+        else: s_a = 0.5 # A=B e A=B_GOOD contam como empate no Elo
 
         e_a = 1 / (1 + 10 ** ((r_b - r_a) / 400))
         ratings[row['model_a']] = r_a + k_factor * (s_a - e_a)
@@ -24,6 +32,11 @@ def calcular_elo(df, k_factor=32):
 
 def calcular_bradley_terry(df, iterações=100):
     if df.empty: return pd.DataFrame()
+    
+    # FILTRO CIENTÍFICO: Ignorar "Ambos Ruins" (!A!B)
+    df = df[df['result_code'] != '!A!B']
+    if df.empty: return pd.DataFrame()
+
     models = list(set(df['model_a'].unique()) | set(df['model_b'].unique()))
     n_models = len(models)
     model_to_idx = {m: i for i, m in enumerate(models)}
@@ -35,9 +48,12 @@ def calcular_bradley_terry(df, iterações=100):
         idx_b = model_to_idx[row['model_b']]
         matches[idx_a][idx_b] += 1
         matches[idx_b][idx_a] += 1
-        if row['result_code'] == 'A>B': wins[idx_a][idx_b] += 1
-        elif row['result_code'] == 'A<B': wins[idx_b][idx_a] += 1
+        
+        code = row['result_code']
+        if code == 'A>B': wins[idx_a][idx_b] += 1
+        elif code == 'A<B': wins[idx_b][idx_a] += 1
         else:
+            # A=B e A=B_GOOD contam como meio ponto
             wins[idx_a][idx_b] += 0.5
             wins[idx_b][idx_a] += 0.5
 

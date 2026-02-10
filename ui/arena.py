@@ -145,30 +145,44 @@ def render_arena():
                 st.divider()
                 st.markdown("### 👨‍⚖️ Qual seu veredito?")
 
-                # Lógica de Votação (Sem st.form para permitir interatividade)
+                # Lógica de Votação (5 Opções Científicas)
                 voto = st.radio("Qual modelo descreveu melhor?",
-                                ["Modelo A", "Modelo B", "Empate", "Ambos Ruins"],
+                                [
+                                    "Modelo A (Vitória)", 
+                                    "Modelo B (Vitória)", 
+                                    "Empate (Neutro)", 
+                                    "Ambos Bons (Excelência)", 
+                                    "Ambos Ruins (Falha Mútua)"
+                                ],
+                                index=None,
                                 horizontal=True)
 
                 obs = ""
-                # Campo condicional: Só aparece e é obrigatório se "Ambos Ruins"
-                if voto == "Ambos Ruins":
-                    obs = st.text_area("Qual a espécie correta / O que está errado? (Obrigatório)")
+                # Campo condicional: Obrigatório se "Ambos Ruins"
+                if voto == "Ambos Ruins (Falha Mútua)":
+                    st.markdown("**⚠️ AVISO DE QUALIDADE:** Para 'Ambos Ruins', você **DEVE** fornecer a justificativa ou a identificação correta. Isso criará um dataset de correção (Ground Truth).")
+                    obs = st.text_area("Justificativa / Espécie Correta (Obrigatório)*")
+                else:
+                    obs = st.text_area("Comentários (Opcional)")
 
                 if st.button("✅ Confirmar Avaliação", type="primary"):
-                    # Validação de campo obrigatório
-                    if voto == "Ambos Ruins" and not obs.strip():
-                        st.error("⚠️ Para classificar como 'Ambos Ruins', é obrigatório informar o motivo ou a espécie correta.")
+                    # Validação de campo obrigatório (Regra 3)
+                    if voto == "Ambos Ruins (Falha Mútua)" and len(obs.strip()) < 10:
+                        st.error("⚠️ Para classificar como 'Ambos Ruins', a justificativa é OBRIGATÓRIA e deve ter conteúdo relevante.")
+                        st.stop()
                     
                     elif voto:
-                        # Mapear voto para código de resultado
+                        # Mapeamento Científico (Regra 4)
                         mapa_voto = {
-                            "Modelo A": "A>B", 
-                            "Modelo B": "A<B", 
-                            "Empate": "A=B", 
-                            "Ambos Ruins": "!A!B"
+                            "Modelo A (Vitória)": "A>B", 
+                            "Modelo B (Vitória)": "A<B", 
+                            "Empate (Neutro)": "A=B", 
+                            "Ambos Bons (Excelência)": "A=B_GOOD",
+                            "Ambos Ruins (Falha Mútua)": "!A!B"
                         }
                         
+                        codigo_resultado = mapa_voto[voto]
+
                         # Preparar dados para salvar
                         email = st.session_state.usuario_info.get("email", "")
                         if email:
@@ -187,7 +201,7 @@ def render_arena():
                             "model_b": st.session_state.modelo_b,
                             "model_response_a": st.session_state.resp_a,
                             "model_response_b": st.session_state.resp_b,
-                            "result_code": mapa_voto[voto],
+                            "result_code": codigo_resultado,
                             "text_len_a": len(st.session_state.resp_a) if st.session_state.resp_a else 0,
                             "text_len_b": len(st.session_state.resp_b) if st.session_state.resp_b else 0,
                             "time_a": st.session_state.time_a,
@@ -207,7 +221,7 @@ def render_arena():
                                     "modelo_b": st.session_state.modelo_b,
                                     "especie": st.session_state.pasta_especie
                                 }]
-                                st.success("🎉 Avaliação Registrada! Obrigado por contribuir.")
+                                st.success("🎉 Avaliação Científica Registrada! Obrigado.")
                                 st.info(f"🔓 **Revelação:** A = {st.session_state.modelo_a} | B = {st.session_state.modelo_b}")
                                 time.sleep(2)
                                 st.rerun()
