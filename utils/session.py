@@ -17,7 +17,7 @@ def init():
         
         # Google Gemini (Tipo 2)
         if "GOOGLE_API_KEY" in st.secrets or "GOOGLE_API_KEY_2" in st.secrets:
-            modelos["gemini-2.0-flash"] = 2
+            modelos["gemini-3-flash-preview"] = 2
             modelos["gemini-2.5-flash"] = 2
             modelos["gemini-2.5-flash-lite"] = 2
 
