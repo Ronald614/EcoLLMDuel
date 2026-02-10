@@ -99,9 +99,6 @@ def render_arena():
 
             with col_texto:
                 st.markdown("#### 📝 Prompt Enviado")
-                st.markdown("""<style>
-                    [data-testid="stAppViewContainer"] textarea:disabled { -webkit-text-fill-color: inherit !important; opacity: 1 !important; }
-                </style>""", unsafe_allow_html=True)
                 st.text_area(
                     label="Prompt",
                     value=st.session_state.get("prompt_usado", PROMPT_TEMPLATE),
