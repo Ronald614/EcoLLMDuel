@@ -4,8 +4,8 @@ from utils.session import init
 from ui.sidebar import renderizar_sidebar
 from ui.cadastro import form_cadastro
 from ui.arena import render_arena
-from ui.ranking import render_ranking
-from data.database import verificar_perfil
+from ui.ranking import render_global_stats, render_elo, render_bt, render_acc
+from data.database import verificar_perfil, carregar_dados_duelos
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(layout="wide", page_title="EcoLLMDuel", page_icon="🤖")
@@ -29,7 +29,6 @@ def main():
             st.session_state.usuario_info = {
                 "name": st.user.name,
                 "email": st.user.email,
-                "is_logged_in": True,
                 "loaded_from_oauth": True
             }
         else:
@@ -71,15 +70,35 @@ def main():
             st.stop()
 
     # === APP PRINCIPAL ===
+    # === CARREGAR DADOS GERAIS ===
+    # Carregamos aqui para passar para os rankings sem recarregar várias vezes
+    df_duelos = carregar_dados_duelos()
+
+    # === APP PRINCIPAL ===
     st.title("🛡️ EcoLLM Arena")
 
-    tab_arena, tab_rank = st.tabs(["⚔️ Arena de Duelo", "🏆 Leaderboard (Rank)"])
+    # 4 Abas Principais
+    tab_arena, tab_elo, tab_bt, tab_acc = st.tabs([
+        "⚔️ Arena de Duelo", 
+        "📈 Elo Rating", 
+        "📊 Bradley-Terry", 
+        "🎯 Acurácia"
+    ])
 
     with tab_arena:
         render_arena()
 
-    with tab_rank:
-        render_ranking()
+    with tab_elo:
+        render_global_stats(df_duelos)
+        render_elo(df_duelos)
+
+    with tab_bt:
+        render_global_stats(df_duelos)
+        render_bt(df_duelos)
+
+    with tab_acc:
+        render_global_stats(df_duelos)
+        render_acc(df_duelos)
 
 if __name__ == "__main__":
     main()

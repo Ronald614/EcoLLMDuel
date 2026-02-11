@@ -16,30 +16,30 @@ def init():
              modelos["gpt-5-mini"] = 1
         
         # Google Gemini (Tipo 2)
-        if "GOOGLE_API_KEY" in st.secrets or "GOOGLE_API_KEY_2" in st.secrets:
-            modelos["gemini-3-flash-preview"] = 2
-            modelos["gemini-2.5-flash"] = 2
-            modelos["gemini-2.5-flash-lite"] = 2
+        # if "GOOGLE_API_KEY" in st.secrets or "GOOGLE_API_KEY_2" in st.secrets:
+        #     modelos["gemini-3-flash-preview"] = 2
+        #     modelos["gemini-2.5-flash"] = 2
+        #     modelos["gemini-2.5-flash-lite"] = 2
 
 
         # NVIDIA API (Tipo 4)
-        if "NVIDIA_API_KEY" in st.secrets:
-            # Meta (Vision)
-            modelos["meta/llama-3.2-90b-vision-instruct"] = 4
-            modelos["meta/llama-3.2-11b-vision-instruct"] = 4
-            modelos["meta/llama-4-maverick-17b-128e-instruct"] = 4
-            modelos["meta/llama-4-scout-17b-16e-instruct"] = 4
-            # Mistral (Vision)
-            modelos["mistralai/mistral-large-3-675b-instruct-2512"] = 4
-            modelos["mistralai/ministral-14b-instruct-2512"] = 4
-            modelos["mistralai/mistral-medium-3-instruct"] = 4
-            # Microsoft (Vision)
-            modelos["microsoft/phi-4-multimodal-instruct"] = 4
-            modelos["microsoft/phi-3.5-vision-instruct"] = 4
-            # Google (Vision via NVIDIA)
-            modelos["google/gemma-3-27b-it"] = 4
-            # Kimi (via NVIDIA API)
-            modelos["moonshotai/kimi-k2.5"] = 4
+        # if "NVIDIA_API_KEY" in st.secrets:
+        #     # Meta (Vision)
+        #     modelos["meta/llama-3.2-90b-vision-instruct"] = 4
+        #     modelos["meta/llama-3.2-11b-vision-instruct"] = 4
+        #     modelos["meta/llama-4-maverick-17b-128e-instruct"] = 4
+        #     modelos["meta/llama-4-scout-17b-16e-instruct"] = 4
+        #     # Mistral (Vision)
+        #     modelos["mistralai/mistral-large-3-675b-instruct-2512"] = 4
+        #     modelos["mistralai/ministral-14b-instruct-2512"] = 4
+        #     modelos["mistralai/mistral-medium-3-instruct"] = 4
+        #     # Microsoft (Vision)
+        #     modelos["microsoft/phi-4-multimodal-instruct"] = 4
+        #     modelos["microsoft/phi-3.5-vision-instruct"] = 4
+        #     # Google (Vision via NVIDIA)
+        #     modelos["google/gemma-3-27b-it"] = 4
+        #     # Kimi (via NVIDIA API)
+        #     modelos["moonshotai/kimi-k2.5"] = 4
 
         # Sem modelos = erro
         if not modelos:
@@ -49,8 +49,7 @@ def init():
         st.session_state.update({
             "usuario_info": {
                 "name": None,
-                "email": None,
-                "is_logged_in": False
+                "email": None
             },
             "detalhes_usuario": None,
             "modelos_disponiveis": modelos,

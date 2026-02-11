@@ -3,32 +3,25 @@ import re
 import streamlit as st
 
 def extrair_json(texto: str) -> dict | None:
-    """Tenta extrair JSON de uma string que pode conter texto ao redor."""
-    texto_limpo = texto.strip()
+    """Extrai JSON da resposta. Como usamos JSON Mode, a resposta já deve vir limpa."""
+    texto = texto.strip()
     
-    # 1. Remover blocos markdown ```json ... ```
-    match_md = re.search(r'```(?:json)?\s*(.*?)\s*```', texto_limpo, re.DOTALL)
-    if match_md:
-        texto_limpo = match_md.group(1).strip()
+    # Remover markdown se houver (ex: ```json ... ```)
+    if texto.startswith("```"):
+        texto = re.sub(r"^```(?:json)?\n?|\n?```$", "", texto, flags=re.MULTILINE)
     
-    # 2. Tentar parse direto
     try:
-        return json.loads(texto_limpo)
+        return json.loads(texto)
     except json.JSONDecodeError:
-        # 3. Último recurso: procurar JSON dentro do texto (primeiro { até último })
-        match_json = re.search(r'\{.*\}', texto, re.DOTALL)
-        if match_json:
-            return json.loads(match_json.group())  # Se falhar aqui, é erro real
-        raise  # Não encontrou nenhum JSON
+        return None
 
 def decodificar_json(resposta: str) -> bool:
-    """Tenta formatar a string de resposta como JSON visual no Streamlit.
-    Retorna True se conseguiu, False se não."""
-    try:
-        resultado = extrair_json(resposta)
-        st.json(resultado)
+    """Tenta renderizar o JSON na interface."""
+    dados = extrair_json(resposta)
+    if dados:
+        st.json(dados)
         return True
-    except (json.JSONDecodeError, Exception):
-        st.warning("⚠️ Resposta não é um JSON válido")
-        st.code(resposta, language="text")
-        return False
+    
+    st.warning("⚠️ O modelo não retornou um JSON válido.")
+    st.code(resposta, language="text")
+    return False

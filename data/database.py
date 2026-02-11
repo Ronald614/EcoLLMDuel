@@ -103,7 +103,7 @@ def salvar_avaliacao(dados: Dict[str, Any]) -> bool:
 
 def carregar_dados_duelos():
     try:
-        query = "SELECT model_a, model_b, result_code FROM evaluations"
+        query = "SELECT model_a, model_b, result_code, species, model_response_a, model_response_b FROM evaluations"
         df = conn.query(query, ttl=0, show_spinner=False)
         return df
     except Exception as e:
