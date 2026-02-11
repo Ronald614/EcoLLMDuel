@@ -74,7 +74,7 @@ def main():
     # Carregamos aqui para passar para os rankings sem recarregar várias vezes
     df_duelos = carregar_dados_duelos()
 
-    # === APP PRINCIPAL ===
+
     st.title("🛡️ EcoLLM Arena")
 
     # 4 Abas Principais
