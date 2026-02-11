@@ -1,5 +1,69 @@
 import pandas as pd
 import numpy as np
+from utils.json_utils import extrair_json
+
+def calcular_acuracia(df):
+    if df.empty: return pd.DataFrame()
+    
+    # Coletar modelos
+    todos_modelos = list(set(df['model_a'].unique()) | set(df['model_b'].unique()))
+    stats = {m: {'total': 0, 'acertos': 0} for m in todos_modelos}
+    
+    for _, row in df.iterrows():
+        especie_real = str(row['species']).strip().lower()
+        
+        # Processar Modelo A
+        try:
+            json_a = extrair_json(row['model_response_a'])
+            if json_a:
+                nome_cientifico_a = str(json_a.get("nome_cientifico", "")).strip().lower()
+                deteccao_a = str(json_a.get("deteccao", "")).strip().lower()
+                
+                # Caso Background/Vazio
+                if especie_real in ["background", "empty", "vazio", "nenhum"]:
+                     if deteccao_a == "nenhuma" or nome_cientifico_a in ["nenhum", "none", ""]:
+                         stats[row['model_a']]['acertos'] += 1
+                
+                # Caso Espécie Normal
+                else:
+                    # Fuzzy match simples: verifica se a espécie real está contida na resposta ou vice-versa
+                    if especie_real in nome_cientifico_a or nome_cientifico_a in especie_real:
+                        stats[row['model_a']]['acertos'] += 1
+            
+            stats[row['model_a']]['total'] += 1
+        except:
+            pass # Erro no JSON ou processamento conta como erro (não soma acerto)
+
+        # Processar Modelo B
+        try:
+            json_b = extrair_json(row['model_response_b'])
+            if json_b:
+                nome_cientifico_b = str(json_b.get("nome_cientifico", "")).strip().lower()
+                deteccao_b = str(json_b.get("deteccao", "")).strip().lower()
+                
+                if especie_real in ["background", "empty", "vazio", "nenhum"]:
+                     if deteccao_b == "nenhuma" or nome_cientifico_b in ["nenhum", "none", ""]:
+                         stats[row['model_b']]['acertos'] += 1
+                else:
+                    if especie_real in nome_cientifico_b or nome_cientifico_b in especie_real:
+                        stats[row['model_b']]['acertos'] += 1
+            
+            stats[row['model_b']]['total'] += 1
+        except:
+            pass
+
+    # Criar DataFrame
+    dados_acc = []
+    for m, s in stats.items():
+        if s['total'] > 0:
+            acc = s['acertos'] / s['total']
+        else:
+            acc = 0.0
+        dados_acc.append({"Modelo": m, "Acurácia": acc, "Total Amostras": s['total']})
+    
+    df_acc = pd.DataFrame(dados_acc).sort_values(by="Acurácia", ascending=False).reset_index(drop=True)
+    df_acc.index += 1
+    return df_acc
 
 def calcular_elo(df, k_factor=32):
     if df.empty: return pd.DataFrame()

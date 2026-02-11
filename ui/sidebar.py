@@ -4,7 +4,7 @@ def renderizar_sidebar():
     with st.sidebar:
         st.markdown("### 🛡️ EcoLLM Arena")
 
-        if st.session_state.usuario_info.get("is_logged_in", False):
+        if st.session_state.usuario_info.get("email"):
             st.markdown(f"""
             <div class="profile-card">
                 <h3>{st.session_state.usuario_info["name"]}</h3>

@@ -52,12 +52,14 @@ def render_arena():
             
             enc = codificar_imagem(st.session_state.imagem)
             
-            prompt_com_especie = PROMPT_TEMPLATE + f"\nConsiderando a espécie '{especie}' pertencente à imagem, utilize essa informação como contexto adicional para sua análise."
-            st.session_state.prompt_usado = prompt_com_especie
+            # --- BLIND TEST: NÃO INFORMAR A ESPÉCIE AO MODELO ---
+            # Antes: prompt_com_especie = PROMPT_TEMPLATE + f"\nConsiderando a espécie '{especie}'..."
+            prompt_blind = PROMPT_TEMPLATE 
+            st.session_state.prompt_usado = prompt_blind
             
             sa, ra, ta = executar_analise(
                 st.session_state.modelo_a, 
-                prompt_com_especie, 
+                prompt_blind, 
                 st.session_state.imagem, 
                 enc
             )
@@ -65,7 +67,7 @@ def render_arena():
             
             sb, rb, tb = executar_analise(
                 st.session_state.modelo_b, 
-                prompt_com_especie, 
+                prompt_blind, 
                 st.session_state.imagem, 
                 enc
             )
@@ -93,12 +95,12 @@ def render_arena():
                 st.markdown("#### 📸 Imagem da Armadilha")
                 st.image(
                     st.session_state.imagem,
-                    caption=f"Espécie: {st.session_state.pasta_especie}",
+                    caption=f"Espécie: {st.session_state.pasta_especie} | Contexto: Selva Amazônica",
                     width='stretch'
                 )
 
             with col_texto:
-                st.markdown("#### 📝 Prompt Enviado")
+                st.markdown("#### 📝 Prompt Enviado (Blind Test)")
                 st.text_area(
                     label="Prompt",
                     value=st.session_state.get("prompt_usado", PROMPT_TEMPLATE),
