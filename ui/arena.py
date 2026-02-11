@@ -12,7 +12,6 @@ from config import TEMPERATURA_FIXA
 def render_arena():
     st.caption("Compare modelos e ajude a classificar a melhor IA para biologia.")
 
-    # Travar botão durante processamento
     processando = st.session_state.duelo_ativo and not st.session_state.analise_executada
     
     if st.button("🔄 Sortear Novo Duelo", type="primary", disabled=processando):
@@ -21,7 +20,6 @@ def render_arena():
         st.session_state.avaliacao_enviada = False
         st.rerun()
     
-    # Executar análise se duelo ativo e pendente
     if st.session_state.duelo_ativo and not st.session_state.analise_executada:
         with st.spinner("Carregando duelo..."):
             dados_img = obter_imagem_aleatoria()
@@ -37,7 +35,6 @@ def render_arena():
             st.session_state.pasta_especie = especie
             st.session_state.id_imagem = id_arq
             
-            # Selecionar 2 modelos
             mods = list(st.session_state.modelos_disponiveis.keys())
             if len(mods) < 2:
                 st.error("❌ Não há modelos suficientes configurados (mínimo 2).")
@@ -46,14 +43,12 @@ def render_arena():
             
             st.session_state.modelo_a, st.session_state.modelo_b = random.sample(mods, 2)
             
-            # LOG
             print(f"🎲 [DUELO] Modelo A: {st.session_state.modelo_a} | Modelo B: {st.session_state.modelo_b}")
             print(f"📸 [DUELO] Espécie: {especie} | Imagem: {nome_arq}")
             
             enc = codificar_imagem(st.session_state.imagem)
             
-            # --- BLIND TEST: NÃO INFORMAR A ESPÉCIE AO MODELO ---
-            # Antes: prompt_com_especie = PROMPT_TEMPLATE + f"\nConsiderando a espécie '{especie}'..."
+            # Blind test: não informar espécie
             prompt_blind = PROMPT_TEMPLATE 
             st.session_state.prompt_usado = prompt_blind
             
@@ -63,7 +58,8 @@ def render_arena():
                 st.session_state.imagem, 
                 enc
             )
-            time.sleep(1)  # Pequeno delay entre chamadas
+            time.sleep(1)
+            
             
             sb, rb, tb = executar_analise(
                 st.session_state.modelo_b, 
@@ -84,7 +80,6 @@ def render_arena():
         
         st.rerun()
     
-    # Mostrar resultados
     if st.session_state.analise_executada and st.session_state.imagem:
         sucesso_total = st.session_state.suc_a and st.session_state.suc_b
 
@@ -121,7 +116,6 @@ def render_arena():
                 st.caption(f"Tempo: {st.session_state.time_b:.2f}s")
                 json_b_ok = decodificar_json(st.session_state.resp_b)
 
-            # Se algum modelo não gerou JSON válido, não abrir formulário
             if not json_a_ok or not json_b_ok:
                 st.warning("⚠️ Um ou ambos os modelos não geraram JSON válido. Sorteie um novo duelo.")
                 st.info(f"🔓 **Revelação:** A = {st.session_state.modelo_a} | B = {st.session_state.modelo_b}")
@@ -131,7 +125,6 @@ def render_arena():
                 st.divider()
                 st.markdown("### 👨‍⚖️ Qual seu veredito?")
 
-                # Votação
                 voto = st.radio("Qual modelo descreveu melhor?",
                                 [
                                     "Modelo A (Vitória)", 
@@ -144,17 +137,37 @@ def render_arena():
                                 horizontal=True)
 
                 obs = ""
-                # Justificativa obrigatória se "Ambos Ruins"
                 if voto == "Ambos Ruins (Falha Mútua)":
-                    st.markdown("**⚠️ AVISO DE QUALIDADE:** Para 'Ambos Ruins', você **DEVE** fornecer a justificativa ou a identificação correta. Isso criará um dataset de correção (Ground Truth).")
-                    obs = st.text_area("Gere uma descrição melhor da imagem (Obrigatório)*")
+                    st.warning("Se ambos os modelos não mencionaram corretamente a espécie e não descreveram corretamente o habitat forneça para nós uma descrição melhor, preencha os campos com base nas informações da imagem")
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        feedback_especie = st.text_input("Espécie Correta (Científico)")
+                    with c2:
+                        feedback_comum = st.text_input("Nome Comum")
+                    
+                    feedback_desc = st.text_area("Descrição Visual Correta", help="Descreva o animal e a cena como deveria ser.")
+                    feedback_habitat = st.text_input("Habitat / Contexto")
+                    
+                    import json
+                    feedback_dict = {
+                        "especie_correta": feedback_especie,
+                        "nome_comum": feedback_comum,
+                        "descricao": feedback_desc,
+                        "habitat": feedback_habitat
+                    }
+                    obs = json.dumps(feedback_dict, ensure_ascii=False)
+                else:
+                    obs = ""
 
                 if st.button("✅ Confirmar Avaliação", type="primary"):
-                    if voto == "Ambos Ruins (Falha Mútua)" and len(obs.strip()) < 10:
-                        st.error("⚠️ Para classificar como 'Ambos Ruins', a justificativa é OBRIGATÓRIA e deve ter conteúdo relevante.")
-                        st.stop()
+                    if voto == "Ambos Ruins (Falha Mútua)":
+                        dados_fb = json.loads(obs)
+                        if len(dados_fb["descricao"].strip()) < 5 and len(dados_fb["especie_correta"].strip()) < 3:
+                            st.error("⚠️ Para classificar como 'Ambos Ruins', por favor preencha pelo menos a Espécie ou uma Descrição Visual válida.")
+                            st.stop()
                     
-                    elif voto:
+                    if voto:
                         mapa_voto = {
                             "Modelo A (Vitória)": "A>B", 
                             "Modelo B (Vitória)": "A<B", 

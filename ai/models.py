@@ -35,7 +35,7 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                 token_param = "max_completion_tokens" if nome_modelo.startswith("gpt-5") else "max_tokens"
                 
                 try:
-                    # Tenta usar Structured Outputs (SDK recente)
+                    # Structured Outputs (SDK recente)
                     r = client.beta.chat.completions.parse(
                         model=nome_modelo,
                         messages=[{
@@ -49,12 +49,12 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                         response_format=AnaliseBiologica,
                         **{token_param: LIMITE_TOKENS}
                     )
-                    # Converte o objeto Pydantic de volta para JSON string para manter compatibilidade
+                    # Manter compatibilidade
                     resp = r.choices[0].message.parsed.model_dump_json()
                     
                 except Exception as e_struct:
                     print(f"⚠️ Erro ao usar Structured Outputs: {e_struct}. Tentando fallback JSON Mode.")
-                    # Fallback para JSON Mode antigo se der erro (ex: SDK desatualizado)
+                    # Fallback para JSON Mode
                     r = client.chat.completions.create(
                         model=nome_modelo,
                         messages=[{

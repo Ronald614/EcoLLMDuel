@@ -20,7 +20,7 @@ def renderizar_sidebar():
         else:
             st.warning("Usuário não identificado.")
         
-        # === ÚLTIMO DUELO (só aparece após avaliar) ===
+        # Último Duelo
         historico = st.session_state.get("historico_duelos", [])
         if historico:
             st.divider()
