@@ -125,7 +125,8 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                 )
                 resp = r.choices[0].message.content
 
-            return True, resp, time.time() - start
+                print(f"[LOG] ✅ Sucesso no modelo {nome_modelo} em {(time.time() - start):.2f}s")
+                return True, resp, time.time() - start
 
         except Exception as e:
             erro_msg = str(e)
@@ -138,7 +139,7 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
             print(f"❌ [LOG] Erro fatal no modelo {nome_modelo}: {erro_msg}")
             return False, None, time.time() - start
 
-    print(f"❌ [LOG] Falha total no modelo {nome_modelo} após {max_retries} tentativas.")
+    print(f"[LOG] ❌ Falha total no modelo {nome_modelo} após {max_retries} tentativas.")
     return False, None, time.time() - start
 
 def executar_analise(nome_modelo, prompt, imagem, img_codificada):
