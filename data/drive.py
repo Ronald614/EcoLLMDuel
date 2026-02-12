@@ -15,7 +15,7 @@ def get_drive_service():
         )
         return build('drive', 'v3', credentials=creds)
     except Exception as e:
-        print(f"Erro ao conectar no Google Drive: {e}")
+        print(f"[LOG] Erro ao conectar no Google Drive: {e}")
         return None
 
 def listar_arquivos(service, folder_id):
@@ -27,7 +27,7 @@ def listar_arquivos(service, folder_id):
         ).execute()
         return results.get('files', [])
     except Exception as e:
-        print(f"Erro ao listar arquivos: {e}")
+        print(f"[LOG] Erro ao listar arquivos: {e}")
         return []
 
 def baixar_imagem_drive(service, file_id):
@@ -52,18 +52,21 @@ def obter_imagem_aleatoria():
     try:
         root_id = st.secrets["geral"]["DRIVE_FOLDER_ID"]
     except KeyError:
+        print(f"[LOG] ❌ Configuração ausente: 'DRIVE_FOLDER_ID' não encontrado no secrets.toml")
         st.error("❌ Configuração ausente: 'DRIVE_FOLDER_ID' não encontrado no secrets.toml")
         return None
 
     # Listar pastas de espécies
     itens_raiz = listar_arquivos(service, root_id)
     if not itens_raiz:
+        print(f"[LOG] ❌ A pasta raiz do Drive está vazia ou inacessível. ID: {root_id}")
         st.error("❌ A pasta raiz do Drive está vazia ou inacessível.")
         return None
 
     pastas = [i for i in itens_raiz if i['mimeType'] == 'application/vnd.google-apps.folder']
 
     if not pastas:
+        print(f"[LOG] ❌ Erro de Dados: Não existem subpastas (espécies) na raiz {root_id}.")
         st.error("❌ Erro de Dados: Não existem subpastas (espécies).")
         return None
 
@@ -77,6 +80,7 @@ def obter_imagem_aleatoria():
     imagens_validas = [i for i in conteudo_pasta if 'image' in i['mimeType']]
 
     if not imagens_validas:
+        print(f"[LOG] ⚠️ Sorteio Inválido: A espécie '{nome_especie}' foi sorteada, mas a pasta dela está vazia.")
         st.error(f"⚠️ Sorteio Inválido: A espécie '{nome_especie}' foi sorteada, mas a pasta dela está vazia.")
         return None
 
@@ -87,5 +91,6 @@ def obter_imagem_aleatoria():
         img_pil = baixar_imagem_drive(service, imagem_sorteada['id'])
         return img_pil, imagem_sorteada['name'], nome_especie, imagem_sorteada['id']
     except Exception as e:
+        print(f"[LOG] ❌ Erro ao baixar a imagem sorteada: {e}")
         st.error(f"Erro ao baixar a imagem sorteada: {e}")
         return None
