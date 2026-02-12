@@ -125,8 +125,8 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                 )
                 resp = r.choices[0].message.content
 
-                print(f"[LOG] ✅ Sucesso no modelo {nome_modelo} em {(time.time() - start):.2f}s")
-                return True, resp, time.time() - start
+            print(f"[LOG] ✅ Sucesso no modelo {nome_modelo} em {(time.time() - start):.2f}s")
+            return True, resp, time.time() - start
 
         except Exception as e:
             erro_msg = str(e)
