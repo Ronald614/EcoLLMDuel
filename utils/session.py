@@ -43,7 +43,7 @@ def init():
 
         # Sem modelos = erro
         if not modelos:
-            st.error("❌ Nenhuma chave de API configurada no secrets.toml. Adicione pelo menos uma (GOOGLE_API_KEY, NVIDIA_API_KEY, etc).")
+            st.error("❌ Nenhuma chave de API configurada no secrets.toml.")
             st.stop()
 
         st.session_state.update({

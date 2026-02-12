@@ -8,6 +8,7 @@ from ai.models import executar_analise
 from data.database import salvar_avaliacao
 from data.drive import obter_imagem_aleatoria
 from config import TEMPERATURA_FIXA
+from data.species_names import SPECIES_COMMON_NAMES
 
 def render_arena():
     st.caption("Compare modelos e ajude a classificar a melhor IA para biologia.")
@@ -140,19 +141,28 @@ def render_arena():
                 if voto == "Ambos Ruins (Falha Mútua)":
                     st.warning("Se ambos os modelos não mencionaram corretamente a espécie e não descreveram corretamente o habitat forneça para nós uma descrição melhor, preencha os campos com base nas informações da imagem")
                     
+                    especie_real = st.session_state.pasta_especie
+                    
+                    if especie_real.lower() == "background":
+                        st.info("⚠️ **Esta foto não contém nenhum animal !**")
+                        nome_comum_real = "N/A" # Conteúdo interno
+                    else:
+                        nome_comum_real = SPECIES_COMMON_NAMES.get(especie_real, "Não listado")
+                        st.info(f"🧬 **Espécie Identificada:** {especie_real} ({nome_comum_real})")
+                    
                     c1, c2 = st.columns(2)
                     with c1:
-                        feedback_especie = st.text_input("Espécie Correta (Científico)")
+                         feedback_quantidade = st.number_input("Número de Indivíduos", min_value=1, value=1, step=1)
                     with c2:
-                        feedback_comum = st.text_input("Nome Comum")
-                    
+                        feedback_habitat = st.text_input("Habitat / Contexto")
+
                     feedback_desc = st.text_area("Descrição Visual Correta", help="Descreva o animal e a cena como deveria ser.")
-                    feedback_habitat = st.text_input("Habitat / Contexto")
                     
                     import json
                     feedback_dict = {
-                        "especie_correta": feedback_especie,
-                        "nome_comum": feedback_comum,
+                        "especie_correta": especie_real,
+                        "nome_comum": nome_comum_real,
+                        "quantidade": feedback_quantidade,
                         "descricao": feedback_desc,
                         "habitat": feedback_habitat
                     }
@@ -163,8 +173,8 @@ def render_arena():
                 if st.button("✅ Confirmar Avaliação", type="primary"):
                     if voto == "Ambos Ruins (Falha Mútua)":
                         dados_fb = json.loads(obs)
-                        if len(dados_fb["descricao"].strip()) < 5 and len(dados_fb["especie_correta"].strip()) < 3:
-                            st.error("⚠️ Para classificar como 'Ambos Ruins', por favor preencha pelo menos a Espécie ou uma Descrição Visual válida.")
+                        if len(dados_fb["descricao"].strip()) < 5:
+                            st.error("⚠️ Para classificar como 'Ambos Ruins', por favor forneça uma Descrição Visual válida.")
                             st.stop()
                     
                     if voto:
