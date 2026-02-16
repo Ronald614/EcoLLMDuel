@@ -9,15 +9,4 @@ class AnaliseBiologica(BaseModel):
     descricao_imagem: str = Field(..., description="Descrição detalhada dos elementos visíveis na imagem.")
     razao: str = Field(..., description="Justificativa baseada nas características visuais.")
 
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "deteccao": "Sim",
-                "nome_cientifico": "Panthera onca",
-                "nome_comum": "Onça-pintada",
-                "numero_individuos": "1",
-                "descricao_imagem": "Um grande felino com pintas pretas caminhando na floresta.",
-                "razao": "Padrão de rosetas característico e porte robusto."
-            }
-        }
-    }
+

@@ -5,6 +5,7 @@ SPECIES_COMMON_NAMES = {
     "Leopardus wiedii": "Gato-maracajá",
     "Panthera onca": "Onça-pintada",
     "Pauxi tuberosa": "Mutum-cavalo",
+    "Pauxituberosa": "Mutum-cavalo",
     "Sapajus macrocephalus": "Macaco-prego-de-cabeça-grande",
     "Sciurus spadiceus": "Esquilo-vermelho-da-Amazônia",
     "Tupinambis teguixin": "Teiú-branco",

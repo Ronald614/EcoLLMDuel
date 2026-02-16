@@ -32,8 +32,13 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
             if tipo == 1:
                 client = get_openai_client()
                 # Modelos novos (gpt-5*) usam max_completion_tokens
-                token_param = "max_completion_tokens" if nome_modelo.startswith("gpt-5") else "max_tokens"
+                token_param = "max_completion_tokens" if "gpt-5" in nome_modelo else "max_tokens"
                 
+                # Alguns modelos novos não permitem temperatura != 1
+                kwargs = {token_param: LIMITE_TOKENS}
+                if not ("gpt-5" in nome_modelo or "o1" in nome_modelo):
+                    kwargs["temperature"] = TEMPERATURA_FIXA
+
                 try:
                     # Structured Outputs (SDK recente)
                     r = client.beta.chat.completions.parse(
@@ -45,15 +50,14 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                                 {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{img_codificada}"}}
                             ]
                         }],
-                        temperature=TEMPERATURA_FIXA,
                         response_format=AnaliseBiologica,
-                        **{token_param: LIMITE_TOKENS}
+                        **kwargs
                     )
                     # Manter compatibilidade
                     resp = r.choices[0].message.parsed.model_dump_json()
                     
                 except Exception as e_struct:
-                    print(f"⚠️ Erro ao usar Structured Outputs: {e_struct}. Tentando fallback JSON Mode.")
+                    print(f"Erro ao usar Structured Outputs: {e_struct}. Tentando fallback JSON Mode.")
                     # Fallback para JSON Mode
                     r = client.chat.completions.create(
                         model=nome_modelo,
@@ -64,9 +68,8 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                                 {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{img_codificada}"}}
                             ]
                         }],
-                        temperature=TEMPERATURA_FIXA,
                         response_format={"type": "json_object"},
-                        **{token_param: LIMITE_TOKENS}
+                        **kwargs
                     )
                     resp = r.choices[0].message.content
 
@@ -86,6 +89,8 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                         config_simples = {
                             "temperature": TEMPERATURA_FIXA,
                             "max_output_tokens": LIMITE_TOKENS,
+                            "response_mime_type": "application/json",
+                            "response_schema": AnaliseBiologica
                         }
                         
                         blob = {"mime_type": "image/jpeg", "data": img_codificada}
@@ -98,10 +103,10 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                         break
                         
                     except Exception as e:
-                        print(f"⚠️ [GEMINI] Chave {i+1} falhou: {e}")
+                        print(f"[GEMINI] Chave {i+1} falhou: {e}")
                         last_error = e
                         if i < len(keys) - 1:
-                            print(f"🔄 Tentando próxima chave...")
+                            print(f"Tentando próxima chave...")
                             continue
                 
                 if last_error:
@@ -114,6 +119,9 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                 r = client.chat.completions.create(
                     model=nome_modelo,
                     messages=[{
+                        "role": "system",
+                         "content": "You are a specialized biology assistant. You MUST output ONLY a valid JSON object matching the schema. Do not include markdown formatting (```json), explanations, or any other text."
+                    }, {
                         "role":"user",
                         "content":[
                             {"type":"text","text":prompt},
@@ -121,25 +129,32 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                         ]
                     }],
                     temperature=TEMPERATURA_FIXA,
-                    max_tokens=LIMITE_TOKENS
+                    max_tokens=LIMITE_TOKENS,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "AnaliseBiologica",
+                            "schema": AnaliseBiologica.model_json_schema()
+                        }
+                    }
                 )
                 resp = r.choices[0].message.content
 
-            print(f"[LOG] ✅ Sucesso no modelo {nome_modelo} em {(time.time() - start):.2f}s")
+            print(f"[LOG] Sucesso no modelo {nome_modelo} em {(time.time() - start):.2f}s")
             return True, resp, time.time() - start
 
         except Exception as e:
             erro_msg = str(e)
 
             if ("429" in erro_msg or "quota" in erro_msg or "exhausted" in erro_msg) and tentativa < max_retries - 1:
-                print(f"⚠️ [LOG] Cota excedida no {nome_modelo}. Tentativa {tentativa+1}. Aguardando {tempo_espera}s...")
+                print(f"[LOG] Cota excedida no {nome_modelo}. Tentativa {tentativa+1}. Aguardando {tempo_espera}s...")
                 time.sleep(tempo_espera)
                 continue
 
-            print(f"❌ [LOG] Erro fatal no modelo {nome_modelo}: {erro_msg}")
+            print(f"[LOG] Erro fatal no modelo {nome_modelo}: {erro_msg}")
             return False, None, time.time() - start
 
-    print(f"[LOG] ❌ Falha total no modelo {nome_modelo} após {max_retries} tentativas.")
+    print(f"[LOG] Falha total no modelo {nome_modelo} após {max_retries} tentativas.")
     return False, None, time.time() - start
 
 def executar_analise(nome_modelo, prompt, imagem, img_codificada):
