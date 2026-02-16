@@ -22,6 +22,6 @@ def decodificar_json(resposta: str) -> bool:
         st.json(dados)
         return True
     
-    st.warning("⚠️ O modelo não retornou um JSON válido.")
+    st.warning("O modelo não retornou um JSON válido.")
     st.code(resposta, language="text")
     return False

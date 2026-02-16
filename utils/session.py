@@ -8,12 +8,20 @@ def init():
         
         # OpenAI (Tipo 1)
         if "OPENAI_API_KEY" in st.secrets:
-             modelos["gpt-4o"] = 1
-             modelos["gpt-4o-mini"] = 1
              modelos["gpt-4.1"] = 1
              modelos["gpt-4.1-mini"] = 1
              modelos["gpt-4.1-nano"] = 1
+             modelos["gpt-4o"] = 1
+             modelos["gpt-4o-mini"] = 1
+             modelos["gpt-5"] = 1
+             modelos["gpt-5-chat-latest"] = 1
              modelos["gpt-5-mini"] = 1
+             modelos["gpt-5-nano"] = 1
+             modelos["gpt-5-search-api"] = 1
+             modelos["gpt-5.1"] = 1
+             modelos["gpt-5.1-chat-latest"] = 1
+             modelos["gpt-5.2"] = 1
+             modelos["gpt-5.2-chat-latest"] = 1
         
         # Google Gemini (Tipo 2)
         # if "GOOGLE_API_KEY" in st.secrets or "GOOGLE_API_KEY_2" in st.secrets:
@@ -43,7 +51,7 @@ def init():
 
         # Sem modelos = erro
         if not modelos:
-            st.error("❌ Nenhuma chave de API configurada no secrets.toml.")
+            st.error("Nenhuma chave de API configurada no secrets.toml.")
             st.stop()
 
         st.session_state.update({

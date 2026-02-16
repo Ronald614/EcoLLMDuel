@@ -98,3 +98,4 @@ yarn-error.log
 .mypy_cache/
 .streamlit/secrets.toml
 coverage.xml
+data/mamiraua_samples/

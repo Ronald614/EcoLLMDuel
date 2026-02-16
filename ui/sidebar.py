@@ -2,7 +2,7 @@ import streamlit as st
 
 def renderizar_sidebar():
     with st.sidebar:
-        st.markdown("### 🛡️ EcoLLM Arena")
+        st.markdown("### EcoLLM Arena")
 
         if st.session_state.usuario_info.get("email"):
             st.markdown(f"""
@@ -13,7 +13,7 @@ def renderizar_sidebar():
             """, unsafe_allow_html=True)
 
             if st.session_state.detalhes_usuario:
-                st.success("✅ Perfil Carregado")
+                st.success("Perfil Carregado")
 
             if st.button("Sair (Logout)", type="secondary"):
                 st.logout()
@@ -24,10 +24,10 @@ def renderizar_sidebar():
         historico = st.session_state.get("historico_duelos", [])
         if historico:
             st.divider()
-            st.markdown("### 🔓 Último Duelo")
+            st.markdown("### Último Duelo")
             d = historico[0]
             st.caption(
                 f"**Espécie:** {d['especie']}\n\n"
-                f"🅰️ `{d['modelo_a']}`\n\n"
-                f"🅱️ `{d['modelo_b']}`"
+                f"A: `{d['modelo_a']}`\n\n"
+                f"B: `{d['modelo_b']}`"
             )
