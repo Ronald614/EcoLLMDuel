@@ -15,7 +15,14 @@ def get_drive_service():
         )
         return build('drive', 'v3', credentials=creds)
     except Exception as e:
-        print(f"[LOG] Erro ao conectar no Google Drive: {e}")
+        erro = str(e).lower()
+        print(f"[ERRO DRIVE] Falha na autenticação: {e}")
+        if "invalid_grant" in erro or "unauthorized" in erro:
+            st.error("Erro de Autenticação Google: Credenciais inválidas ou expiradas.")
+        elif "service_account" in erro:
+             st.error("Erro de Configuração: Problema no arquivo de serviço (.toml).")
+        else:
+            st.error("Falha ao conectar no Google Drive.")
         return None
 
 def listar_arquivos(service, folder_id):
@@ -91,6 +98,15 @@ def obter_imagem_aleatoria():
         img_pil = baixar_imagem_drive(service, imagem_sorteada['id'])
         return img_pil, imagem_sorteada['name'], nome_especie, imagem_sorteada['id']
     except Exception as e:
-        print(f"[LOG] Erro ao baixar a imagem sorteada: {e}")
-        st.error(f"Erro ao baixar a imagem sorteada: {e}")
+        erro = str(e).lower()
+        print(f"[ERRO DOWNLOAD] {e}")
+        
+        if "not found" in erro or "404" in erro:
+            st.error(f"Imagem não encontrada no Drive (ID: {imagem_sorteada.get('id', '?')})")
+        elif "quota" in erro or "limit" in erro or "403" in erro:
+             st.error("Cota do Google Drive excedida temporariamente.")
+        elif "timeout" in erro:
+             st.error("Tempo limite esgotado ao baixar imagem.")
+        else:
+             st.error("Erro ao baixar a imagem. Detalhes no terminal.")
         return None
