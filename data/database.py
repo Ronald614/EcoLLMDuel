@@ -3,7 +3,11 @@ from sqlalchemy import text
 from typing import Dict, Any
 import pandas as pd
 
-conn = st.connection("evaluations_db", type="sql", url=st.secrets["DATABASE_URL"])
+try:
+    conn = st.connection("evaluations_db", type="sql", url=st.secrets["DATABASE_URL"])
+except Exception as e:
+    print(f"[ERRO FATAL] Falha na conexão com BD: {e}")
+    conn = None
 
 def verificar_perfil(email):
     email_tratado = email.lower().strip()
@@ -19,6 +23,7 @@ def verificar_perfil(email):
         else:
             return None
     except Exception as e:
+        print(f"[ERRO PERFIL] {e}")
         return None
 
 def salvar_perfil_novo(dados):
@@ -51,7 +56,16 @@ def salvar_perfil_novo(dados):
             s.commit()
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar perfil: {e}")
+        erro = str(e).lower()
+        print(f"[ERRO SALVAR PERFIL] {e}")
+        if "duplicate" in erro or "unique" in erro:
+             st.error("Erro: Este email já está cadastrado.")
+        elif "timeout" in erro:
+             st.error("Erro: Tempo limite de conexão excedido. Tente novamente.")
+        elif "access denied" in erro or "password" in erro:
+             st.error("Erro: Falha de autenticação no banco de dados.")
+        else:
+             st.error("Erro ao salvar perfil. Verifique sua conexão.")
         return False
 
 def salvar_avaliacao(dados: Dict[str, Any]) -> bool:
@@ -98,7 +112,17 @@ def salvar_avaliacao(dados: Dict[str, Any]) -> bool:
             s.commit()
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar avaliação: {e}")
+        erro = str(e).lower()
+        print(f"[ERRO SALVAR AVALIACAO] {e}")
+        
+        if "timeout" in erro:
+             st.error("Erro de Conexão: O banco de dados demorou a responder.")
+        elif "syntax" in erro:
+             st.error("Erro Interno: Falha na estrutura dos dados.")
+        elif "foreign key" in erro:
+             st.error("Erro de Integridade: Dados relacionados não encontrados.")
+        else:
+             st.error("Erro ao salvar avaliação. Tente novamente.")
         return False
 
 def carregar_dados_duelos():

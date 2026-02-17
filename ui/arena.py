@@ -261,7 +261,14 @@ def render_arena():
                             else:
                                 st.error("Erro ao salvar avaliação. Tente novamente.")
                         except Exception as e:
-                            st.error(f"Erro na operação: {str(e)[:100]}")
+                            print(f"[ERRO] Erro ao salvar avaliação (UI): {e}")
+                            erro = str(e).lower()
+                            if "connection" in erro:
+                                st.error("Erro de Conexão: Verifique sua internet.")
+                            elif "timeout" in erro:
+                                st.error("Erro: O servidor demorou para responder.")
+                            else:
+                                st.error("Erro na operação. Tente novamente.")
 
         else:
             st.error("Duelo cancelado: Um ou ambos os modelos falharam na análise.")
