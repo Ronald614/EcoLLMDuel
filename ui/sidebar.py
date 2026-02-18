@@ -1,14 +1,17 @@
 import streamlit as st
+from html import escape as html_escape
 
 def renderizar_sidebar():
     with st.sidebar:
         st.markdown("### EcoLLM Arena")
 
         if st.session_state.usuario_info.get("email"):
+            nome_seguro = html_escape(str(st.session_state.usuario_info["name"]))
+            email_seguro = html_escape(str(st.session_state.usuario_info["email"]))
             st.markdown(f"""
             <div class="profile-card">
-                <h3>{st.session_state.usuario_info["name"]}</h3>
-                <small>{st.session_state.usuario_info["email"]}</small>
+                <h3>{nome_seguro}</h3>
+                <small>{email_seguro}</small>
             </div>
             """, unsafe_allow_html=True)
 

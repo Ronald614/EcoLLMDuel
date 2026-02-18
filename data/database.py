@@ -3,14 +3,20 @@ from sqlalchemy import text
 from typing import Dict, Any
 import pandas as pd
 
-try:
-    conn = st.connection("evaluations_db", type="sql", url=st.secrets["DATABASE_URL"])
-except Exception as e:
-    print(f"[ERRO FATAL] Falha na conexão com BD: {e}")
-    conn = None
+
+def _get_conn():
+    """Conexão lazy — só conecta quando realmente precisar."""
+    try:
+        return st.connection("evaluations_db", type="sql", url=st.secrets["DATABASE_URL"])
+    except Exception as e:
+        print(f"[ERRO BD] Falha na conexão: {e}")
+        return None
 
 def verificar_perfil(email):
     email_tratado = email.lower().strip()
+    conn = _get_conn()
+    if not conn:
+        return None
     try:
         df = conn.query(
             "SELECT * FROM user_profiles WHERE email = :email",
@@ -27,6 +33,10 @@ def verificar_perfil(email):
         return None
 
 def salvar_perfil_novo(dados):
+    conn = _get_conn()
+    if not conn:
+        st.error("Erro de conexão com o banco de dados.")
+        return False
     try:
         dados["email"] = dados["email"].lower().strip()
         query = text("""
@@ -69,6 +79,10 @@ def salvar_perfil_novo(dados):
         return False
 
 def salvar_avaliacao(dados: Dict[str, Any]) -> bool:
+    conn = _get_conn()
+    if not conn:
+        st.error("Erro de conexão com o banco de dados.")
+        return False
     try:
         query = text("""
             INSERT INTO evaluations (
@@ -126,9 +140,14 @@ def salvar_avaliacao(dados: Dict[str, Any]) -> bool:
         return False
 
 def carregar_dados_duelos():
+    conn = _get_conn()
+    if not conn:
+        print("[ERRO BD] Sem conexão para carregar duelos.")
+        return pd.DataFrame()
     try:
         query = "SELECT model_a, model_b, result_code, species, model_response_a, model_response_b FROM evaluations"
         df = conn.query(query, ttl=0, show_spinner=False)
         return df
     except Exception as e:
+        print(f"[ERRO BD] Falha ao carregar duelos: {e}")
         return pd.DataFrame()

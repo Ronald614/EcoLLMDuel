@@ -78,8 +78,6 @@ def render_arena():
                 st.session_state.imagem, 
                 enc
             )
-            time.sleep(1)
-            
             
             sb, rb, tb = executar_analise(
                 st.session_state.modelo_b, 

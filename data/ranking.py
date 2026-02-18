@@ -3,299 +3,289 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-from scipy.optimize import minimize
 from sklearn.metrics import classification_report
-from utils.json_utils import extrair_json
 
-# Ignorar avisos de divisão por zero em classes que o modelo nunca previu (F1=0 é o correto)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-ABSENT_SYNONYMS = {"null", "none", "absent", "vazio", "empty", "", "nan", "background", "nenhum"}
+SINONIMOS_AUSENCIA = {"null", "none", "absent", "vazio", "empty", "", "nan", "background", "nenhum"}
 
-def normalizar_label(raw: str) -> str:
-    limpo = str(raw).lower().strip()
-    return "background" if limpo in ABSENT_SYNONYMS else limpo
+def normalizar_label(texto_bruto: str) -> str:
+    texto_limpo = str(texto_bruto).lower().strip()
+    return "background" if texto_limpo in SINONIMOS_AUSENCIA else texto_limpo
 
 
-def parsear_resposta(raw_response: str) -> str:
+def parsear_resposta(resposta_bruta: str) -> str:
+    """Extrai o nome científico da resposta JSON do modelo."""
     try:
-        # Se já vier como dict (alguns fluxos do Streamlit), usa direto
-        if isinstance(raw_response, dict):
-            data = raw_response
+        if isinstance(resposta_bruta, dict):
+            dados = resposta_bruta
         else:
-            # Tenta decodificar string JSON
-            data = json.loads(raw_response)
+            dados = json.loads(resposta_bruta)
         
-        # Busca flexível pelos campos do Schema
-        pred = data.get("scientific_name") or data.get("nome_cientifico") or "background"
-        return normalizar_label(str(pred))
+        predicao = dados.get("scientific_name") or dados.get("nome_cientifico") or "background"
+        return normalizar_label(str(predicao))
     except Exception:
         return "erro_formatacao"
 
 
-def construir_pool(df_raw: pd.DataFrame) -> pd.DataFrame:
-    records = []
-    if df_raw.empty:
+def construir_pool(dados_brutos: pd.DataFrame) -> pd.DataFrame:
+    """Transforma duelos pareados em formato flat (um registro por modelo por imagem)."""
+    registros = []
+    if dados_brutos.empty:
         return pd.DataFrame(columns=["modelo", "verdade", "predicao"])
 
-    for _, row in df_raw.iterrows():
-        target = normalizar_label(row["species"])
+    for _, linha in dados_brutos.iterrows():
+        especie_verdadeira = normalizar_label(linha["species"])
         
-        # Processa Modelo A
-        records.append({
-            "modelo": row["model_a"],
-            "verdade": target,
-            "predicao": parsear_resposta(row["model_response_a"])
+        registros.append({
+            "modelo": linha["model_a"],
+            "verdade": especie_verdadeira,
+            "predicao": parsear_resposta(linha["model_response_a"])
         })
-        
-        # Processa Modelo B
-        records.append({
-            "modelo": row["model_b"],
-            "verdade": target,
-            "predicao": parsear_resposta(row["model_response_b"])
+        registros.append({
+            "modelo": linha["model_b"],
+            "verdade": especie_verdadeira,
+            "predicao": parsear_resposta(linha["model_response_b"])
         })
 
-    return pd.DataFrame(records)
+    return pd.DataFrame(registros)
 
 
-def calcular_acuracia(df):
-    if df.empty: return pd.DataFrame()
-    
-    # Coletar modelos
-    todos_modelos = list(set(df['model_a'].unique()) | set(df['model_b'].unique()))
-    stats = {m: {'total': 0, 'acertos': 0} for m in todos_modelos}
-    
-    for _, row in df.iterrows():
-        especie_real = str(row['species']).strip().lower()
-        if especie_real in ["empty", "vazio", "nenhum", "none", "null"]:
-             especie_real = "background"
-        
-        # Processar Modelo A
-        try:
-            json_a = extrair_json(row['model_response_a'])
-            if json_a:
-                nome_cientifico_a = str(json_a.get("nome_cientifico", "")).strip().lower()
-                deteccao_a = str(json_a.get("deteccao", "")).strip().lower()
-                
-                # Caso Background/Vazio
-                if especie_real == "background":
-                     if deteccao_a == "nenhuma" or nome_cientifico_a in ["nenhum", "none", "", "background"]:
-                         stats[row['model_a']]['acertos'] += 1
-                
-                # Caso Espécie Normal
-                else:
-                    # Fuzzy match simples
-                    if especie_real in nome_cientifico_a or nome_cientifico_a in especie_real:
-                        stats[row['model_a']]['acertos'] += 1
-            
-            stats[row['model_a']]['total'] += 1
-        except:
-            pass 
-
-        # Processar Modelo B
-        try:
-            json_b = extrair_json(row['model_response_b'])
-            if json_b:
-                nome_cientifico_b = str(json_b.get("nome_cientifico", "")).strip().lower()
-                deteccao_b = str(json_b.get("deteccao", "")).strip().lower()
-                
-                if especie_real == "background":
-                     if deteccao_b == "nenhuma" or nome_cientifico_b in ["nenhum", "none", "", "background"]:
-                         stats[row['model_b']]['acertos'] += 1
-                else:
-                    if especie_real in nome_cientifico_b or nome_cientifico_b in especie_real:
-                        stats[row['model_b']]['acertos'] += 1
-            
-            stats[row['model_b']]['total'] += 1
-        except:
-            pass
-
-    # Criar DataFrame
-    dados_acc = []
-    for m, s in stats.items():
-        if s['total'] > 0:
-            acc = s['acertos'] / s['total']
-        else:
-            acc = 0.0
-        dados_acc.append({"Modelo": m, "Acurácia": acc, "Total Amostras": s['total']})
-    
-    df_acc = pd.DataFrame(dados_acc).sort_values(by="Acurácia", ascending=False).reset_index(drop=True)
-    df_acc.index += 1
-    return df_acc
-
-
-
-
-def calcular_ranking_macro_f1(df_pool: pd.DataFrame) -> pd.DataFrame:
-    if df_pool.empty:
+def calcular_acuracia(dados_brutos: pd.DataFrame) -> pd.DataFrame:
+    """Acurácia por match exato, usando o pool normalizado."""
+    if dados_brutos.empty:
         return pd.DataFrame()
 
-    ranking = []
-    # Definir todas as espécies possíveis para garantir que classes zeradas apareçam
-    todas_especies = sorted(df_pool["verdade"].unique())
+    pool_normalizado = construir_pool(dados_brutos)
 
-    for mod in df_pool["modelo"].unique():
-        subset = df_pool[df_pool["modelo"] == mod]
+    lista_acuracia = []
+    for nome_modelo in pool_normalizado["modelo"].unique():
+        subconjunto = pool_normalizado[pool_normalizado["modelo"] == nome_modelo]
+        total_amostras = len(subconjunto)
+        total_acertos = (subconjunto["verdade"] == subconjunto["predicao"]).sum()
+        acuracia = total_acertos / total_amostras if total_amostras > 0 else 0.0
+
+        lista_acuracia.append({
+            "Modelo": nome_modelo,
+            "Acurácia": acuracia,
+            "Total Amostras": total_amostras
+        })
+
+    tabela_acuracia = pd.DataFrame(lista_acuracia).sort_values(
+        by="Acurácia", ascending=False
+    ).reset_index(drop=True)
+    tabela_acuracia.index += 1
+    return tabela_acuracia
+
+
+def calcular_ranking_macro_f1(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
+    """Macro F1-Score via sklearn, forçando inclusão de todas as classes."""
+    if pool_normalizado.empty:
+        return pd.DataFrame()
+
+    lista_ranking = []
+    todas_especies = sorted(pool_normalizado["verdade"].unique())
+
+    for nome_modelo in pool_normalizado["modelo"].unique():
+        subconjunto = pool_normalizado[pool_normalizado["modelo"] == nome_modelo]
         
-        # classification_report com output_dict=True gera todas as métricas
-        report = classification_report(
-            subset["verdade"],
-            subset["predicao"],
-            labels=todas_especies, # Força inclusão de todas as classes
+        relatorio = classification_report(
+            subconjunto["verdade"],
+            subconjunto["predicao"],
+            labels=todas_especies,
             output_dict=True,
             zero_division=0
         )
         
-        ranking.append({
-            "Modelo":          mod,
-            "Macro F1-Score":  round(report["macro avg"]["f1-score"], 4),
-            "Acurácia Global": round(report.get("accuracy", 0.0), 4),
-            "Recall Médio":    round(report["macro avg"]["recall"], 4),
-            "Amostras":        len(subset)
+        lista_ranking.append({
+            "Modelo":          nome_modelo,
+            "Macro F1-Score":  round(relatorio["macro avg"]["f1-score"], 4),
+            "Acurácia Global": round(relatorio.get("accuracy", 0.0), 4),
+            "Recall Médio":    round(relatorio["macro avg"]["recall"], 4),
+            "Amostras":        len(subconjunto)
         })
 
-    return pd.DataFrame(ranking).sort_values("Macro F1-Score", ascending=False).reset_index(drop=True)
+    return pd.DataFrame(lista_ranking).sort_values("Macro F1-Score", ascending=False).reset_index(drop=True)
 
 
-
-
-def analise_por_especie(df_pool: pd.DataFrame, especie_alvo: str) -> pd.DataFrame:
-    target = normalizar_label(especie_alvo)
-    resultados = []
+def analise_por_especie(pool_normalizado: pd.DataFrame, especie_alvo: str) -> pd.DataFrame:
+    """Métricas binárias (one-vs-rest) para uma espécie específica."""
+    especie_normalizada = normalizar_label(especie_alvo)
+    lista_resultados = []
     
-    if df_pool.empty:
+    if pool_normalizado.empty:
         return pd.DataFrame()
 
-    for mod in df_pool["modelo"].unique():
-        subset = df_pool[df_pool["modelo"] == mod]
+    for nome_modelo in pool_normalizado["modelo"].unique():
+        subconjunto = pool_normalizado[pool_normalizado["modelo"] == nome_modelo]
         
-        # Cria vetores binários: 1 se for a espécie alvo, 0 se não for
-        y_true = (subset["verdade"] == target).astype(int)
-        y_pred = (subset["predicao"] == target).astype(int)
+        rotulo_verdadeiro = (subconjunto["verdade"] == especie_normalizada).astype(int)
+        rotulo_predito    = (subconjunto["predicao"] == especie_normalizada).astype(int)
         
-        # Matriz de confusão binária
-        tp = ((y_true == 1) & (y_pred == 1)).sum()
-        fp = ((y_true == 0) & (y_pred == 1)).sum()
-        fn = ((y_true == 1) & (y_pred == 0)).sum()
-        tn = ((y_true == 0) & (y_pred == 0)).sum()
+        verdadeiros_positivos = ((rotulo_verdadeiro == 1) & (rotulo_predito == 1)).sum()
+        falsos_positivos      = ((rotulo_verdadeiro == 0) & (rotulo_predito == 1)).sum()
+        falsos_negativos      = ((rotulo_verdadeiro == 1) & (rotulo_predito == 0)).sum()
+        verdadeiros_negativos = ((rotulo_verdadeiro == 0) & (rotulo_predito == 0)).sum()
         
-        # Métricas
-        suporte = tp + fn
-        total = tp + fp + fn + tn
+        total_amostras = verdadeiros_positivos + falsos_positivos + falsos_negativos + verdadeiros_negativos
         
-        # Evita divisão por zero
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1        = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-        accuracy  = (tp + tn) / total if total > 0 else 0.0
+        # Precisão, Revocação, F1 e Acurácia (com proteção contra divisão por zero)
+        precisao = (verdadeiros_positivos / (verdadeiros_positivos + falsos_positivos)
+                    if (verdadeiros_positivos + falsos_positivos) > 0 else 0.0)
+
+        revocacao = (verdadeiros_positivos / (verdadeiros_positivos + falsos_negativos)
+                     if (verdadeiros_positivos + falsos_negativos) > 0 else 0.0)
+
+        pontuacao_f1 = (2 * (precisao * revocacao) / (precisao + revocacao)
+                        if (precisao + revocacao) > 0 else 0.0)
+
+        acuracia = ((verdadeiros_positivos + verdadeiros_negativos) / total_amostras
+                     if total_amostras > 0 else 0.0)
         
-        resultados.append({
-            "Modelo":       mod,
-            "Taxa de Erro": round(1.0 - accuracy, 4), # O inverso da acurácia
-            "F1-Score":     round(f1, 4),
-            "Recall":       round(recall, 4),
-            "Precision":    round(precision, 4),
-            "TP": int(tp), "FP": int(fp), "FN": int(fn) # Útil para debug
+        lista_resultados.append({
+            "Modelo":       nome_modelo,
+            "Taxa de Erro": round(1.0 - acuracia, 4),
+            "F1-Score":     round(pontuacao_f1, 4),
+            "Recall":       round(revocacao, 4),
+            "Precision":    round(precisao, 4),
+            "TP": int(verdadeiros_positivos),
+            "FP": int(falsos_positivos),
+            "FN": int(falsos_negativos)
         })
         
-    return pd.DataFrame(resultados).sort_values("F1-Score", ascending=False).reset_index(drop=True)
+    return pd.DataFrame(lista_resultados).sort_values("F1-Score", ascending=False).reset_index(drop=True)
 
 
+def calcular_bradley_terry(dados_brutos: pd.DataFrame) -> pd.DataFrame:
+    """Bradley-Terry (1952) — P(i vence j) = força_i / (força_i + força_j), estimado por MLE."""
+    if dados_brutos.empty:
+        return pd.DataFrame()
 
-
-def calcular_bradley_terry(df_raw: pd.DataFrame) -> pd.DataFrame:
-    if df_raw.empty: return pd.DataFrame()
-
-    modelos = sorted(list(set(df_raw["model_a"].unique()) | set(df_raw["model_b"].unique())))
-    n_models = len(modelos)
-    idx_map = {m: i for i, m in enumerate(modelos)}
+    lista_modelos = sorted(set(dados_brutos["model_a"].unique()) | set(dados_brutos["model_b"].unique()))
+    numero_modelos = len(lista_modelos)
+    indice_modelo = {modelo: indice for indice, modelo in enumerate(lista_modelos)}
     
-    # Matriz de vitórias (Wins)
-    W = np.zeros((n_models, n_models))
+    # vitorias[i][j] = vezes que modelo i venceu modelo j
+    vitorias = np.zeros((numero_modelos, numero_modelos))
     
-    for _, row in df_raw.iterrows():
-        # Verifica quem acertou
-        truth = normalizar_label(row["species"])
-        p_a = parsear_resposta(row["model_response_a"])
-        p_b = parsear_resposta(row["model_response_b"])
+    for _, linha in dados_brutos.iterrows():
+        especie_verdadeira = normalizar_label(linha["species"])
+        predicao_modelo_a = parsear_resposta(linha["model_response_a"])
+        predicao_modelo_b = parsear_resposta(linha["model_response_b"])
         
-        ok_a = (p_a == truth)
-        ok_b = (p_b == truth)
+        acertou_modelo_a = (predicao_modelo_a == especie_verdadeira)
+        acertou_modelo_b = (predicao_modelo_b == especie_verdadeira)
         
-        # Se ambos erraram, ignora (duelo nulo)
-        if not ok_a and not ok_b:
+        if not acertou_modelo_a and not acertou_modelo_b:
             continue
             
-        i, j = idx_map[row["model_a"]], idx_map[row["model_b"]]
+        indice_a = indice_modelo[linha["model_a"]]
+        indice_b = indice_modelo[linha["model_b"]]
         
-        if ok_a and not ok_b:
-            W[i][j] += 1
-        elif ok_b and not ok_a:
-            W[j][i] += 1
-        else: # Empate (ambos acertaram)
-            W[i][j] += 0.5
-            W[j][i] += 0.5
+        if acertou_modelo_a and not acertou_modelo_b:
+            vitorias[indice_a][indice_b] += 1
+        elif acertou_modelo_b and not acertou_modelo_a:
+            vitorias[indice_b][indice_a] += 1
+        else:
+            vitorias[indice_a][indice_b] += 0.5
+            vitorias[indice_b][indice_a] += 0.5
 
-    # Função de verossimilhança negativa
-    def neg_log_likelihood(params):
-        # params são log-probabilidades (logits)
-        # exp(params) garante positividade
-        pi = np.exp(params)
-        ll = 0
-        epsilon = 1e-9 # Evita log(0)
+    EPSILON = 1e-9
+
+    def log_verossimilhanca_negativa(parametros):
+        forca = np.exp(parametros)
+        verossimilhanca = 0
         
-        for i in range(n_models):
-            for j in range(n_models):
-                if i != j and W[i][j] > 0:
-                    prob_i_vence_j = pi[i] / (pi[i] + pi[j] + epsilon)
-                    ll += W[i][j] * np.log(prob_i_vence_j + epsilon)
-        return -ll
+        for indice_i in range(numero_modelos):
+            for indice_j in range(numero_modelos):
+                if indice_i != indice_j and vitorias[indice_i][indice_j] > 0:
+                    probabilidade_i_vence_j = forca[indice_i] / (forca[indice_i] + forca[indice_j])
+                    verossimilhanca += vitorias[indice_i][indice_j] * np.log(probabilidade_i_vence_j + EPSILON)
+        return -verossimilhanca
 
-    # Otimização
-    x0 = np.zeros(n_models)
-    res = minimize(neg_log_likelihood, x0, method='L-BFGS-B')
+    ponto_inicial = np.zeros(numero_modelos)
+    resultado_otimizacao = minimize(log_verossimilhanca_negativa, ponto_inicial, method='L-BFGS-B')
     
-    # Centralizar scores (média 0)
-    scores = res.x - np.mean(res.x)
+    pontuacoes = resultado_otimizacao.x - np.mean(resultado_otimizacao.x)
     
-    # Escalar para facilitar leitura (tipo Elo, base 1000 + desvio)
-    # Ou deixar puro Logit. Vamos usar Logit puro arredondado.
-    return pd.DataFrame({
-        "Modelo": modelos,
-        "BT Score (Logit)": np.round(scores, 3)
-    }).sort_values("BT Score (Logit)", ascending=False).reset_index(drop=True)
+    tabela_bradley_terry = pd.DataFrame({
+        "Modelo": lista_modelos,
+        "BT Score (Logit)": np.round(pontuacoes, 3)
+    })
+
+    tabela_bradley_terry = tabela_bradley_terry.sort_values(
+        "BT Score (Logit)", ascending=False
+    ).reset_index(drop=True)
+
+    return tabela_bradley_terry
 
 
-def calcular_elo_rating(df_raw: pd.DataFrame, k_factor=32) -> pd.DataFrame:
-    if df_raw.empty: return pd.DataFrame()
-
-    modelos = sorted(list(set(df_raw["model_a"].unique()) | set(df_raw["model_b"].unique())))
-    ratings = {m: 1000.0 for m in modelos}
+def _calcular_elo_uma_vez(dados_brutos: pd.DataFrame, fator_ajuste: float) -> dict:
+    """Uma rodada de Elo sobre os duelos na ordem dada."""
+    lista_modelos = sorted(set(dados_brutos["model_a"].unique()) | set(dados_brutos["model_b"].unique()))
+    pontuacoes = {modelo: 1000.0 for modelo in lista_modelos}
     
-    for _, row in df_raw.iterrows():
-        truth = normalizar_label(row["species"])
-        p_a = parsear_resposta(row["model_response_a"])
-        p_b = parsear_resposta(row["model_response_b"])
+    for _, linha in dados_brutos.iterrows():
+        especie_verdadeira = normalizar_label(linha["species"])
+        predicao_modelo_a = parsear_resposta(linha["model_response_a"])
+        predicao_modelo_b = parsear_resposta(linha["model_response_b"])
         
-        ok_a = (p_a == truth)
-        ok_b = (p_b == truth)
+        acertou_modelo_a = (predicao_modelo_a == especie_verdadeira)
+        acertou_modelo_b = (predicao_modelo_b == especie_verdadeira)
         
-        if not ok_a and not ok_b: continue # Ignora se ambos erram
+        if not acertou_modelo_a and not acertou_modelo_b:
+            continue
         
-        # Define resultado S_a
-        if ok_a and not ok_b: s_a = 1.0
-        elif ok_b and not ok_a: s_a = 0.0
-        else: s_a = 0.5
+        if acertou_modelo_a and not acertou_modelo_b:
+            resultado_real_a = 1.0
+        elif acertou_modelo_b and not acertou_modelo_a:
+            resultado_real_a = 0.0
+        else:
+            resultado_real_a = 0.5
         
-        ra = ratings[row["model_a"]]
-        rb = ratings[row["model_b"]]
+        rating_modelo_a = pontuacoes[linha["model_a"]]
+        rating_modelo_b = pontuacoes[linha["model_b"]]
         
-        ea = 1 / (1 + 10 ** ((rb - ra) / 400))
+        resultado_esperado_a = 1 / (1 + 10 ** ((rating_modelo_b - rating_modelo_a) / 400))
         
-        ratings[row["model_a"]] += k_factor * (s_a - ea)
-        ratings[row["model_b"]] += k_factor * ((1 - s_a) - (1 - ea))
+        pontuacoes[linha["model_a"]] += fator_ajuste * (resultado_real_a - resultado_esperado_a)
+        pontuacoes[linha["model_b"]] += fator_ajuste * ((1 - resultado_real_a) - (1 - resultado_esperado_a))
+    
+    return pontuacoes
+
+
+def calcular_elo_rating(dados_brutos: pd.DataFrame, k_factor=32, n_bootstrap=100) -> pd.DataFrame:
+    """Elo com bootstrap — embaralha a ordem N vezes e tira a média (Zheng et al., 2023)."""
+    if dados_brutos.empty:
+        return pd.DataFrame()
+
+    lista_modelos = sorted(set(dados_brutos["model_a"].unique()) | set(dados_brutos["model_b"].unique()))
+    historico_ratings = {modelo: [] for modelo in lista_modelos}
+    
+    gerador_aleatorio = np.random.default_rng(seed=42)
+
+    for _ in range(n_bootstrap):
+        duelos_embaralhados = dados_brutos.sample(
+            frac=1,
+            random_state=gerador_aleatorio.integers(0, 2**31)
+        ).reset_index(drop=True)
         
-    return pd.DataFrame([
-        {"Modelo": m, "Elo Rating": round(r, 0)} for m, r in ratings.items()
-    ]).sort_values("Elo Rating", ascending=False).reset_index(drop=True)
+        ratings_rodada = _calcular_elo_uma_vez(duelos_embaralhados, k_factor)
+        
+        for modelo in lista_modelos:
+            historico_ratings[modelo].append(ratings_rodada[modelo])
+
+    lista_elo = []
+    for modelo in lista_modelos:
+        media_rating = np.mean(historico_ratings[modelo])
+        lista_elo.append({
+            "Modelo": modelo,
+            "Elo Rating": round(media_rating, 0)
+        })
+
+    tabela_elo = pd.DataFrame(lista_elo).sort_values(
+        "Elo Rating", ascending=False
+    ).reset_index(drop=True)
+
+    return tabela_elo

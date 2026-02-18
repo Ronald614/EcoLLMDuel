@@ -10,7 +10,6 @@ from data.ranking import (
     analise_por_especie
 )
 import plotly.express as px
-from utils.json_utils import extrair_json
 from data.species_names import SPECIES_COMMON_NAMES
 
 def render_global_stats(df_duelos):

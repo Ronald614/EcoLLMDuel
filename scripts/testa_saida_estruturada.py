@@ -8,52 +8,48 @@ import os
 import base64
 from io import BytesIO
 from PIL import Image
-
 # Adiciona o diretório raiz ao path para importar módulos
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from utils.session import init
 from ai.models import executar_analise_cached
 from ai.schemas import AnaliseBiologica
 
 st.set_page_config(page_title="Teste Structured Outputs", layout="wide")
 st.title("🛡️ Teste de Saída Estruturada (Schema Pydantic)")
 
-# Imagem de teste (Pixel Vermelho) - JPEG
-PIXEL_B64 = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD/2Q=="
+# Imagem de teste (Pixel Vermelho) - JPEG (Validada)
+PIXEL_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 IMG_HASH = "test_hash_red_pixel"
 
-# Modelos para testar (Um de cada tipo se possível)
-modelos_teste = [
-    {"nome": "gpt-4o-mini", "tipo": 1, "provider": "OpenAI"},
-    {"nome": "gemini-2.5-flash", "tipo": 2, "provider": "Google Gemini"}, # Usando versão estável recente
-    {"nome": "meta/llama-3.2-11b-vision-instruct", "tipo": 4, "provider": "NVIDIA NIM"},
-]
+from utils.session import init
+
+# Inicializa sessão para carregar modelos do secrets
+init()
 
 if st.button("Iniciar Teste de Schema"):
     st.write("Iniciando testes... (Isso pode consumir tokens)")
     
+    # Recupera modelos da sessão
+    modelos_dict = st.session_state.get("modelos_disponiveis", {})
+    
+    if not modelos_dict:
+        st.error("Nenhum modelo encontrado no Session State. Verifique seus secrets.")
+        st.stop()
+
     results = []
     
-    for m in modelos_teste:
-        nome = m["nome"]
-        tipo = m["tipo"]
-        provider = m["provider"]
+    # Itera sobre todos os modelos carregados dinamicamente
+    for nome, tipo in modelos_dict.items():
+        # Define provedor baseado no tipo
+        provider = "Desconhecido"
+        if tipo == 1: provider = "OpenAI"
+        elif tipo == 2: provider = "Google Gemini"
+        elif tipo == 4: provider = "NVIDIA NIM"
         
         st.write(f"### Testando {provider}: `{nome}`")
         
-        # Verifica chaves antes de tentar
-        msg_skip = None
-        if tipo == 1 and "OPENAI_API_KEY" not in st.secrets:
-            msg_skip = "OPENAI_API_KEY ausente"
-        elif tipo == 2 and "GOOGLE_API_KEY" not in st.secrets:
-             msg_skip = "GOOGLE_API_KEY ausente"
-        elif tipo == 4 and "NVIDIA_API_KEY" not in st.secrets:
-             msg_skip = "NVIDIA_API_KEY ausente"
-             
-        if msg_skip:
-            st.warning(f"Pulando {nome}: {msg_skip}")
-            results.append({"Modelo": nome, "Provedor": provider, "Status": "Skipped", "Erro": msg_skip, "JSON": ""})
-            continue
+        # Como o init() já filtra por chaves existentes, não precisamos checar secrets aqui novamente
 
         try:
             sucesso, resp_json, tempo = executar_analise_cached(
