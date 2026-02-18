@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, precision_recall_fscore_support
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -52,24 +52,20 @@ def construir_pool(dados_brutos: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(registros)
 
 
-def calcular_acuracia(dados_brutos: pd.DataFrame) -> pd.DataFrame:
+def calcular_acuracia(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
     """Acurácia por match exato, usando o pool normalizado."""
-    if dados_brutos.empty:
+    if pool_normalizado.empty:
         return pd.DataFrame()
-
-    pool_normalizado = construir_pool(dados_brutos)
 
     lista_acuracia = []
     for nome_modelo in pool_normalizado["modelo"].unique():
         subconjunto = pool_normalizado[pool_normalizado["modelo"] == nome_modelo]
-        total_amostras = len(subconjunto)
-        total_acertos = (subconjunto["verdade"] == subconjunto["predicao"]).sum()
-        acuracia = total_acertos / total_amostras if total_amostras > 0 else 0.0
 
         lista_acuracia.append({
             "Modelo": nome_modelo,
-            "Acurácia": acuracia,
-            "Total Amostras": total_amostras
+            #Calcular com o sklearn
+            "Acurácia": accuracy_score(subconjunto["verdade"], subconjunto["predicao"]),
+            "Total Amostras": len(subconjunto)
         })
 
     tabela_acuracia = pd.DataFrame(lista_acuracia).sort_values(
@@ -123,25 +119,15 @@ def analise_por_especie(pool_normalizado: pd.DataFrame, especie_alvo: str) -> pd
         rotulo_verdadeiro = (subconjunto["verdade"] == especie_normalizada).astype(int)
         rotulo_predito    = (subconjunto["predicao"] == especie_normalizada).astype(int)
         
-        verdadeiros_positivos = ((rotulo_verdadeiro == 1) & (rotulo_predito == 1)).sum()
-        falsos_positivos      = ((rotulo_verdadeiro == 0) & (rotulo_predito == 1)).sum()
-        falsos_negativos      = ((rotulo_verdadeiro == 1) & (rotulo_predito == 0)).sum()
-        verdadeiros_negativos = ((rotulo_verdadeiro == 0) & (rotulo_predito == 0)).sum()
+        verdadeiros_negativos, falsos_positivos, falsos_negativos, verdadeiros_positivos = confusion_matrix(
+            rotulo_verdadeiro, rotulo_predito, labels=[0, 1]
+        ).ravel()
         
-        total_amostras = verdadeiros_positivos + falsos_positivos + falsos_negativos + verdadeiros_negativos
+        precisao, revocacao, pontuacao_f1, _ = precision_recall_fscore_support(
+            rotulo_verdadeiro, rotulo_predito, average="binary", zero_division=0
+        )
         
-        # Precisão, Revocação, F1 e Acurácia (com proteção contra divisão por zero)
-        precisao = (verdadeiros_positivos / (verdadeiros_positivos + falsos_positivos)
-                    if (verdadeiros_positivos + falsos_positivos) > 0 else 0.0)
-
-        revocacao = (verdadeiros_positivos / (verdadeiros_positivos + falsos_negativos)
-                     if (verdadeiros_positivos + falsos_negativos) > 0 else 0.0)
-
-        pontuacao_f1 = (2 * (precisao * revocacao) / (precisao + revocacao)
-                        if (precisao + revocacao) > 0 else 0.0)
-
-        acuracia = ((verdadeiros_positivos + verdadeiros_negativos) / total_amostras
-                     if total_amostras > 0 else 0.0)
+        acuracia = accuracy_score(rotulo_verdadeiro, rotulo_predito)
         
         lista_resultados.append({
             "Modelo":       nome_modelo,
@@ -149,9 +135,9 @@ def analise_por_especie(pool_normalizado: pd.DataFrame, especie_alvo: str) -> pd
             "F1-Score":     round(pontuacao_f1, 4),
             "Recall":       round(revocacao, 4),
             "Precision":    round(precisao, 4),
-            "TP": int(verdadeiros_positivos),
-            "FP": int(falsos_positivos),
-            "FN": int(falsos_negativos)
+            "Verdadeiros Positivos": int(verdadeiros_positivos),
+            "Falsos Positivos": int(falsos_positivos),
+            "Falsos Negativos": int(falsos_negativos)
         })
         
     return pd.DataFrame(lista_resultados).sort_values("F1-Score", ascending=False).reset_index(drop=True)
