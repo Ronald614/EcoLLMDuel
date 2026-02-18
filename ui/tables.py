@@ -1,6 +1,4 @@
 import streamlit as st
-import pandas as pd
-from data.database import carregar_dados_duelos
 from data.ranking import (
     calcular_elo_rating, 
     calcular_bradley_terry, 
@@ -55,7 +53,9 @@ def render_acc(df_duelos):
     st.subheader("🎯 Taxa de Acerto (Binária)")
     st.write("Considera 'Acerto' se o modelo identificou corretamente a espécie (match parcial) ou se identificou corretamente 'Nenhum' animal para imagens de background.")
     if not df_duelos.empty:
-        df_acc = calcular_acuracia(df_duelos)
+        # Formatando os dados para acurácia
+        df_flat = construir_pool(df_duelos)
+        df_acc = calcular_acuracia(df_flat)
         st.dataframe(
             df_acc, width='stretch',
             column_config={
