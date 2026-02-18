@@ -137,7 +137,6 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                             "schema": AnaliseBiologica.model_json_schema()
                         }
                     }
-                    }
                 )
                 resposta_modelo = r.choices[0].message.content
 
