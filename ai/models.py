@@ -27,7 +27,7 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
 
     for tentativa in range(max_retries):
         try:
-            resp = ""
+            resposta_modelo = ""
 
             if tipo == 1:
                 client = get_openai_client()
@@ -54,7 +54,7 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                         **kwargs
                     )
                     # Manter compatibilidade
-                    resp = r.choices[0].message.parsed.model_dump_json()
+                    resposta_modelo = r.choices[0].message.parsed.model_dump_json()
                     
                 except Exception as e_struct:
                     print(f"Erro ao usar Structured Outputs: {e_struct}. Tentando fallback JSON Mode.")
@@ -71,7 +71,7 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                         response_format={"type": "json_object"},
                         **kwargs
                     )
-                    resp = r.choices[0].message.content
+                    resposta_modelo = r.choices[0].message.content
 
             elif tipo == 2:
                 keys = []
@@ -98,7 +98,7 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                             [prompt, blob],
                             generation_config=config_simples
                         )
-                        resp = r.text
+                        resposta_modelo = r.text
                         last_error = None
                         break
                         
@@ -137,11 +137,12 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                             "schema": AnaliseBiologica.model_json_schema()
                         }
                     }
+                    }
                 )
-                resp = r.choices[0].message.content
+                resposta_modelo = r.choices[0].message.content
 
             print(f"[LOG] Sucesso no modelo {nome_modelo} em {(time.time() - start):.2f}s")
-            return True, resp, time.time() - start
+            return True, resposta_modelo, time.time() - start
 
         except Exception as e:
             erro_msg = str(e)

@@ -31,7 +31,7 @@ def render_arena():
         """)
 
     # Se houve falha, não bloqueamos o botão
-    falha_detectada = st.session_state.analise_executada and not (st.session_state.suc_a and st.session_state.suc_b)
+    falha_detectada = st.session_state.analise_executada and not (st.session_state.sucesso_modelo_a and st.session_state.sucesso_modelo_b)
     processando_ou_avaliando = st.session_state.duelo_ativo and not st.session_state.avaliacao_enviada and not falha_detectada
     
     if st.button("Sortear Novo Duelo", type="primary", disabled=processando_ou_avaliando):
@@ -72,14 +72,14 @@ def render_arena():
             prompt_blind = PROMPT_TEMPLATE 
             st.session_state.prompt_usado = prompt_blind
             
-            sa, ra, ta = executar_analise(
+            sucesso_a, resposta_a, tempo_a = executar_analise(
                 st.session_state.modelo_a, 
                 prompt_blind, 
                 st.session_state.imagem, 
                 enc
             )
             
-            sb, rb, tb = executar_analise(
+            sucesso_b, resposta_b, tempo_b = executar_analise(
                 st.session_state.modelo_b, 
                 prompt_blind, 
                 st.session_state.imagem, 
@@ -87,19 +87,19 @@ def render_arena():
             )
             
             st.session_state.update({
-                "resp_a": ra, 
-                "time_a": ta, 
-                "suc_a": sa,
-                "resp_b": rb, 
-                "time_b": tb, 
-                "suc_b": sb,
+                "resposta_modelo_a": resposta_a, 
+                "tempo_modelo_a": tempo_a, 
+                "sucesso_modelo_a": sucesso_a,
+                "resposta_modelo_b": resposta_b, 
+                "tempo_modelo_b": tempo_b, 
+                "sucesso_modelo_b": sucesso_b,
                 "analise_executada": True
             })
         
         st.rerun()
     
     if st.session_state.analise_executada and st.session_state.imagem:
-        sucesso_total = st.session_state.suc_a and st.session_state.suc_b
+        sucesso_total = st.session_state.sucesso_modelo_a and st.session_state.sucesso_modelo_b
 
         if sucesso_total:
             col_img, col_texto = st.columns([0.4, 0.6])
@@ -147,12 +147,12 @@ def render_arena():
             c1, c2 = st.columns(2)
             with c1:
                 st.subheader("Modelo A")
-                st.caption(f"Tempo: {st.session_state.time_a:.2f}s")
-                json_a_ok = decodificar_json(st.session_state.resp_a)
+                st.caption(f"Tempo: {st.session_state.tempo_modelo_a:.2f}s")
+                json_a_ok = decodificar_json(st.session_state.resposta_modelo_a)
             with c2:
                 st.subheader("Modelo B")
-                st.caption(f"Tempo: {st.session_state.time_b:.2f}s")
-                json_b_ok = decodificar_json(st.session_state.resp_b)
+                st.caption(f"Tempo: {st.session_state.tempo_modelo_b:.2f}s")
+                json_b_ok = decodificar_json(st.session_state.resposta_modelo_b)
 
             if not json_a_ok or not json_b_ok:
                 st.warning("Um ou ambos os modelos não geraram JSON válido. Sorteie um novo duelo.")
@@ -232,13 +232,13 @@ def render_arena():
                             "species_folder": st.session_state.pasta_especie,
                             "model_a": st.session_state.modelo_a,
                             "model_b": st.session_state.modelo_b,
-                            "model_response_a": st.session_state.resp_a,
-                            "model_response_b": st.session_state.resp_b,
+                            "model_response_a": st.session_state.resposta_modelo_a,
+                            "model_response_b": st.session_state.resposta_modelo_b,
                             "result_code": codigo_resultado,
-                            "text_len_a": len(st.session_state.resp_a) if st.session_state.resp_a else 0,
-                            "text_len_b": len(st.session_state.resp_b) if st.session_state.resp_b else 0,
-                            "time_a": st.session_state.time_a,
-                            "time_b": st.session_state.time_b,
+                            "text_len_a": len(st.session_state.resposta_modelo_a) if st.session_state.resposta_modelo_a else 0,
+                            "text_len_b": len(st.session_state.resposta_modelo_b) if st.session_state.resposta_modelo_b else 0,
+                            "time_a": st.session_state.tempo_modelo_a,
+                            "time_b": st.session_state.tempo_modelo_b,
                             "comments": obs,
                             "prompt": st.session_state.get("prompt_usado", PROMPT_TEMPLATE),
                             "temperature": TEMPERATURA_FIXA
@@ -271,8 +271,8 @@ def render_arena():
         else:
             st.error("Duelo cancelado: Um ou ambos os modelos falharam na análise.")
             detalhes = []
-            if not st.session_state.suc_a: 
+            if not st.session_state.sucesso_modelo_a: 
                 detalhes.append(f"Erro {st.session_state.modelo_a}")
-            if not st.session_state.suc_b: 
+            if not st.session_state.sucesso_modelo_b: 
                 detalhes.append(f"Erro {st.session_state.modelo_b}")
             st.text("Modelos com erro:\n" + "\n".join(detalhes))
