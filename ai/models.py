@@ -159,5 +159,5 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
 
 def executar_analise(nome_modelo, prompt, imagem, img_codificada):
     tipo = st.session_state.modelos_disponiveis.get(nome_modelo)
-    img_hash = hashlib.md5(img_codificada.encode()).hexdigest()
+    img_hash = hashlib.sha256(img_codificada.encode()).hexdigest()
     return executar_analise_cached(nome_modelo, prompt, img_hash, img_codificada, tipo)

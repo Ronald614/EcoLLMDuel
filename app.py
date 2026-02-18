@@ -46,7 +46,8 @@ def main():
                 try:
                     st.login("google")
                 except Exception as e:
-                    st.error(f"⚠️ Erro na autenticação: {str(e)[:200]}")
+                    print(f"[ERRO AUTH] {e}")
+                    st.error("Falha na autenticação. Tente novamente.")
             st.stop()
     
     # === SIDEBAR ===
@@ -62,7 +63,8 @@ def main():
                 try:
                     st.login("google")
                 except Exception as e:
-                    st.error(f"Erro na autenticação: {str(e)[:200]}")
+                    print(f"[ERRO AUTH] {e}")
+                    st.error("Falha na autenticação. Tente novamente.")
             st.stop()
         
         with st.spinner("Verificando cadastro..."):
