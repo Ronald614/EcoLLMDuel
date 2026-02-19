@@ -11,8 +11,17 @@ warnings.filterwarnings("ignore", category=UserWarning)
 SINONIMOS_AUSENCIA = {"null", "none", "absent", "vazio", "empty", "", "nan", "background", "nenhum"}
 
 def normalizar_label(texto_bruto: str) -> str:
-    texto_limpo = str(texto_bruto).lower().strip()
-    return "background" if texto_limpo in SINONIMOS_AUSENCIA else texto_limpo
+    # Ex: "Sciurus spadiceus" -> "sciurusspadiceus"
+    if pd.isna(texto_bruto): return "background"
+
+    limpo = str(texto_bruto).lower().strip()
+
+    if limpo in SINONIMOS_AUSENCIA:
+        return "background"
+
+    limpo = limpo.replace(" ", "").replace("_", "")
+
+    return limpo
 
 
 def parsear_resposta(resposta_bruta: str) -> str:
@@ -29,7 +38,7 @@ def parsear_resposta(resposta_bruta: str) -> str:
         return "erro_formatacao"
 
 
-def construir_pool(dados_brutos: pd.DataFrame) -> pd.DataFrame:
+def preparar_dados_analise(dados_brutos: pd.DataFrame) -> pd.DataFrame:
     """Transforma duelos pareados em formato flat (um registro por modelo por imagem)."""
     registros = []
     if dados_brutos.empty:
@@ -75,7 +84,7 @@ def calcular_acuracia(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
     return tabela_acuracia
 
 
-def calcular_ranking_macro_f1(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
+def calcular_metricas_globais(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
     """Macro F1-Score via sklearn, forçando inclusão de todas as classes."""
     if pool_normalizado.empty:
         return pd.DataFrame()
@@ -105,7 +114,27 @@ def calcular_ranking_macro_f1(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(lista_ranking).sort_values("Macro F1-Score", ascending=False).reset_index(drop=True)
 
 
-def analise_por_especie(pool_normalizado: pd.DataFrame, especie_alvo: str) -> pd.DataFrame:
+def calcular_matriz_confusao(pool_normalizado: pd.DataFrame, modelo_alvo: str):
+    """Retorna (matriz_confusao, labels) para um modelo específico."""
+    if pool_normalizado.empty:
+        return None, []
+
+    subconjunto = pool_normalizado[pool_normalizado["modelo"] == modelo_alvo]
+    if subconjunto.empty:
+        return None, []
+    
+    todas_especies = sorted(pool_normalizado["verdade"].unique())
+    
+    matriz = confusion_matrix(
+        subconjunto["verdade"],
+        subconjunto["predicao"],
+        labels=todas_especies
+    )
+    
+    return matriz, todas_especies
+
+
+def calcular_metricas_binarias(pool_normalizado: pd.DataFrame, especie_alvo: str) -> pd.DataFrame:
     """Métricas binárias (one-vs-rest) para uma espécie específica."""
     especie_normalizada = normalizar_label(especie_alvo)
     lista_resultados = []

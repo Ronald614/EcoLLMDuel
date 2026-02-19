@@ -10,7 +10,8 @@ from ui.tables import (
     render_bt, 
     render_acc,
     render_macro_f1,
-    render_species_analysis
+    render_species_analysis,
+    render_matriz_confusao_global
 )
 from data.database import verificar_perfil, carregar_dados_duelos
 
@@ -86,12 +87,12 @@ def main():
 
     st.title("EcoLLM Arena")
 
-    tab_arena, tab_elo, tab_bt, tab_acc, tab_metrics = st.tabs([
+    tab_arena, tab_elo, tab_bt, tab_binario, tab_geral = st.tabs([
         "Arena de Duelo", 
         "Elo Rating", 
         "Bradley-Terry", 
-        "Acurácia",
-        "Relatório Técnico"
+        "Métricas por Espécies (Binário)",
+        "Métricas no Geral (por Classes)"
     ])
 
     with tab_arena:
@@ -105,14 +106,15 @@ def main():
         render_global_stats(df_duelos)
         render_bt(df_duelos)
 
-    with tab_acc:
+    with tab_binario:
         render_global_stats(df_duelos)
         render_acc(df_duelos)
+        render_species_analysis(df_duelos)
 
-    with tab_metrics:
+    with tab_geral:
         render_global_stats(df_duelos)
         render_macro_f1(df_duelos)
-        render_species_analysis(df_duelos)
+        render_matriz_confusao_global(df_duelos)
 
 if __name__ == "__main__":
     main()
