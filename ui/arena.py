@@ -9,26 +9,29 @@ from ai.models import executar_analise
 from data.database import salvar_avaliacao
 from data.drive import obter_imagem_aleatoria
 from config import TEMPERATURA_FIXA
-from data.species_names import SPECIES_COMMON_NAMES
+from data.nomes_especies import NOMES_COMUNS_ESPECIES
 
 def render_arena():
     st.caption("Compare modelos e ajude a classificar a melhor IA para biologia.")
     
-    with st.expander("ℹ️ Como funciona este Duelo? (Clique para ver instruções)"):
-        st.markdown("""
-        **Bem-vindo à Arena EcoLLM!** 🌿  
-        Sua ajuda é essencial para validar modelos de IA no monitoramento de fauna amazônica.
+    with st.expander("Como funciona este duelo? (Clique para ver as instruções)"):
+            st.markdown("""
+            **Bem-vindo à Arena EcoLLM!**
+            Sua participação é essencial para validar modelos de IA no monitoramento da fauna amazônica.
 
-        1.  **Sorteio:** Uma imagem real de armadilha fotográfica será carregada aleatoriamente.
-        2.  **Blind Test:** Dois modelos de IA analisarão a imagem **sem saber a resposta correta**.
-        3.  **Votação:** Você, como especialista humano, decide quem mandou bem!
+            1. **Sorteio:** Uma imagem de armadilha fotográfica será carregada aleatoriamente.
+            2. **Teste Cego:** Dois modelos de IA analisarão a imagem sem acesso ao gabarito.
+            3. **Votação:** Você, como especialista humano, avalia qual modelo teve o melhor desempenho.
 
-        **Critérios de Voto:**
-        *   **🏆 Modelo A/B (Vitória):** Se um acertou a espécie e o outro errou, ou se foi muito mais detalhado na descrição do comportamento/habitat.
-        *   **🤝 Empate (Neutro):** Ambos acertaram com nível de detalhe muito similar.
-        *   **🌟 Ambos Bons (Excelência):** Ambos foram fenômenais, descrevendo detalhes sutis.
-        *   **👎 Ambos Ruins (Falha Mútua):** Ambos alucinaram (inventaram animais) ou não detectaram nada quando havia um animal. *Neste caso, pediremos sua ajuda para descrever o que realmente há na imagem.*
-        """)
+            **Critério de Avaliação Principal:**
+            * A identificação correta da espécie é o fator eliminatório. Um modelo que gera uma descrição detalhada, mas erra a espécie (alucinação), deve ser penalizado.
+
+            **Opções de Voto:**
+            * **Vitória (Modelo A ou B):** O modelo acertou a identificação da espécie e o outro errou. Se ambos acertarem, vence aquele que apresentou a melhor justificativa com base na imagem (características visuais, comportamento ou habitat).
+            * **Empate:** Ambos acertaram (ou erraram) a espécie com descrições de qualidade técnica equivalente.
+            * **Ambos Excelentes:** Ambos acertaram a espécie de forma exata e forneceram descrições ricas e úteis.
+            * **Ambos Ruins:** Ambos erraram a identificação grosseiramente ou inventaram animais que não estão na imagem. Nesse caso, o sistema pedirá que você descreva brevemente o que realmente há na foto.
+            """)
 
     # Se houve falha, não bloqueamos o botão
     falha_detectada = st.session_state.analise_executada and not (st.session_state.sucesso_modelo_a and st.session_state.sucesso_modelo_b)
@@ -110,12 +113,12 @@ def render_arena():
                 # Buscar nome comum
                 # Buscar nome comum e formatar científico
                 especie_raw = st.session_state.pasta_especie
-                nome_comum = SPECIES_COMMON_NAMES.get(especie_raw, especie_raw)
+                nome_comum = NOMES_COMUNS_ESPECIES.get(especie_raw, especie_raw)
                 cientifico_formatado = especie_raw
 
                 # Tenta recuperar o nome científico formatado (com espaços) se não bater direto
-                if especie_raw not in SPECIES_COMMON_NAMES:
-                    for k, v in SPECIES_COMMON_NAMES.items():
+                if especie_raw not in NOMES_COMUNS_ESPECIES:
+                    for k, v in NOMES_COMUNS_ESPECIES.items():
                         # Compara ignorando espaços e case
                         if k.replace(" ", "").lower() == especie_raw.replace(" ", "").lower():
                             nome_comum = v
@@ -176,7 +179,7 @@ def render_arena():
 
                 obs = ""
                 if voto == "Ambos Ruins (Falha Mútua)":
-                    st.warning("Se ambos os modelos não mencionaram corretamente a espécie e não descreveram corretamente o habitat forneça para nós uma descrição melhor, preencha o campo com base na imagem (pode pesquisar o animal na internet)")
+                    st.warning("Como os dois modelos falharam na identificação ou na descrição, solicitamos sua anotação manual. Por favor, informe a espécie correta e descreva o registro (consultas a fontes externas para confirmação são permitidas).")
                     
                     especie_real = st.session_state.pasta_especie
                     
@@ -184,7 +187,7 @@ def render_arena():
                         nome_comum_real = "BACKGROUND"
                         feedback_quantidade = 0
                     else:
-                        nome_comum_real = SPECIES_COMMON_NAMES.get(especie_real, especie_real)
+                        nome_comum_real = NOMES_COMUNS_ESPECIES.get(especie_real, especie_real)
                         feedback_quantidade = st.number_input("Número de Indivíduos", min_value=1, value=1, step=1)
 
                     feedback_desc = st.text_area("Descrição Visual Correta", help="Descreva o animal e a cena como deveria ser.")

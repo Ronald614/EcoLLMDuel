@@ -9,7 +9,7 @@ from data.ranking import (
     calcular_matriz_confusao
 )
 import plotly.express as px
-from data.species_names import SPECIES_COMMON_NAMES
+from data.nomes_especies import NOMES_COMUNS_ESPECIES
 
 
 def _obter_nome_exibicao(especie_raw: str) -> str:
@@ -17,7 +17,7 @@ def _obter_nome_exibicao(especie_raw: str) -> str:
     nome_comum = especie_raw
     cientifico_formatado = especie_raw
 
-    for chave, valor in SPECIES_COMMON_NAMES.items():
+    for chave, valor in NOMES_COMUNS_ESPECIES.items():
         if chave.replace(" ", "").lower() == especie_raw.replace(" ", "").lower():
             nome_comum = valor
             cientifico_formatado = chave
@@ -29,21 +29,23 @@ def _obter_nome_exibicao(especie_raw: str) -> str:
 
 
 def render_global_stats(df_duelos):
-    st.header("🏆 Classificação Global")
+    st.header("Visão Geral dos Duelos")
+    st.write("Resumo de quantas avaliações já foram realizadas e quantos modelos de IA estão competindo.")
     if not df_duelos.empty:
         total_batalhas = len(df_duelos)
         total_modelos = len(set(df_duelos['model_a'].unique()) | set(df_duelos['model_b'].unique()))
 
         m1, m2 = st.columns(2)
-        m1.metric("Total de Batalhas", total_batalhas)
-        m2.metric("Modelos Avaliados", total_modelos)
+        m1.metric("Total de Batalhas Avaliadas", total_batalhas)
+        m2.metric("IAs Competidoras", total_modelos)
         st.divider()
     else:
-        st.info("Nenhum duelo realizado ainda.")
+        st.info("Ainda não temos dados o suficiente. Participe dos duelos para gerar relatórios!")
 
 
 def render_elo(df_duelos):
-    st.subheader("📈 Elo Rating System")
+    st.subheader("Sistema de Pontuação (Elo Rating)")
+    st.write("Funciona como o ranking do xadrez: a IA ganha pontos ao vencer e perde ao ser derrotada. Vencer uma IA mais forte vale mais pontos.")
     if not df_duelos.empty:
         df_elo = calcular_elo_rating(df_duelos)
         st.dataframe(df_elo, width='stretch', column_config={"Elo Rating": st.column_config.NumberColumn(format="%.0f")})
@@ -52,7 +54,8 @@ def render_elo(df_duelos):
 
 
 def render_bt(df_duelos):
-    st.subheader("📊 Bradley-Terry Model")
+    st.subheader("Chances de Vitória (Modelo Bradley-Terry)")
+    st.write("A barra indica a força estimada de cada modelo. Quanto mais preenchida, maior a chance dessa IA vencer qualquer confronto.")
     if not df_duelos.empty:
         df_bt = calcular_bradley_terry(df_duelos)
         st.dataframe(
@@ -70,8 +73,8 @@ def render_bt(df_duelos):
 
 
 def render_acc(df_duelos):
-    st.subheader("🎯 Taxa de Acerto (Binária)")
-    st.write("Considera 'Acerto' se o modelo identificou corretamente a espécie (match parcial) ou se identificou corretamente 'Nenhum' animal para imagens de background.")
+    st.subheader("Taxa de Acerto Simples")
+    st.write("Avalia cada IA individualmente. Conta como 'Acerto' quando o modelo identificou o animal correto ou acertou ao dizer que não havia animal na foto.")
     if not df_duelos.empty:
         df_flat = preparar_dados_analise(df_duelos)
         df_acc = calcular_acuracia(df_flat)
@@ -91,8 +94,8 @@ def render_acc(df_duelos):
 
 def render_species_analysis(df_duelos):
     st.divider()
-    st.subheader("Análise Binária por Espécie")
-    st.caption("Selecione uma espécie para ver detalhes de performance 'Um-contra-Todos'.")
+    st.subheader("Análise por Espécie")
+    st.write("Selecione um animal abaixo para ver o desempenho de cada IA ao identificá-lo.")
 
     if df_duelos.empty:
         st.info("Sem dados para análise.")
@@ -132,6 +135,7 @@ def render_species_analysis(df_duelos):
         with coluna_grafico:
             if not df_especie.empty:
                 st.markdown("##### Diagnóstico de Erros")
+                st.write("Veja quantas vezes cada IA acertou, inventou ou deixou de identificar esta espécie:")
                 # Gráfico de Barras Empilhadas para TP, FP, FN
                 df_long = df_especie.melt(
                     id_vars=["Modelo"], 
@@ -152,6 +156,7 @@ def render_species_analysis(df_duelos):
                     y="Modelo",
                     color="Tipo",
                     orientation='h',
+                    
                     color_discrete_map=color_map,
                     text_auto=True
                 )
@@ -163,15 +168,14 @@ def render_species_analysis(df_duelos):
                 )
                 st.plotly_chart(fig, key=f"grafico_stacked_{especie_real}")
                 
-                st.caption("Verde: Acertos | Vermelho: Alucinações | Amarelo: Omissões")
+                st.caption("Verde = Acertou | Vermelho = Alucinou (disse que era este animal, mas não era) | Amarelo = Omitiu (o animal estava na foto, mas a IA não o reconheceu)")
 
 
 def render_macro_f1(df_duelos):
-    st.subheader("Ranking Global (Macro F1-Score)")
+    st.subheader("Ranking de Precisão Justa (Macro F1-Score)")
     st.markdown("""
-    **Por que Macro F1?**  
-    O dataset é desbalanceado (muitas onças/vazio, poucos tatus). A Acurácia simples mascara erros nas classes raras.
-    O **Macro F1** calcula a média harmônica de precisão e recall para *cada espécie* e tira a média, dando peso igual a todas as classes.
+    Algumas espécies aparecem com muito mais frequência do que outras no dataset. Uma IA poderia inflar sua pontuação acertando apenas os animais comuns e errando os raros.  
+    A **Precisão Justa** corrige isso: ela dá peso igual a todas as espécies, penalizando modelos que falham com animais raros. O primeiro lugar aqui é o modelo mais equilibrado.
     """)
 
     if not df_duelos.empty:
@@ -191,8 +195,8 @@ def render_macro_f1(df_duelos):
 
 def render_matriz_confusao_global(df_duelos):
     st.divider()
-    st.subheader("Diagnóstico Visual de Erros (Matriz de Confusão)")
-    st.caption("Visualize onde cada modelo está errando. Eixo X: Predição, Eixo Y: Verdade.")
+    st.subheader("Mapa de Confusões da IA")
+    st.write("Selecione um modelo abaixo. A diagonal mostra os acertos (quando a IA identificou o animal correto). Quadrados azul-escuro fora da diagonal indicam confusões recorrentes entre duas espécies.")
 
     if df_duelos.empty:
         return
