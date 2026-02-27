@@ -1,5 +1,5 @@
 # Dicionário de mapeamento: Nome da Pasta (Científico) -> Nome Comum
-SPECIES_COMMON_NAMES = {
+NOMES_COMUNS_ESPECIES = {
     "Crax globulosa": "Mutum-de-penacho",
     "Didelphis albiventris": "Gambá-de-orelha-branca",
     "Leopardus wiedii": "Gato-maracajá",

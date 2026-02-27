@@ -25,7 +25,7 @@ def normalizar_label(texto_bruto: str) -> str:
 
 
 def parsear_resposta(resposta_bruta: str) -> str:
-    """Extrai o nome científico da resposta JSON do modelo."""
+    # Extrai o nome científico da resposta JSON do modelo.
     try:
         if isinstance(resposta_bruta, dict):
             dados = resposta_bruta
@@ -39,7 +39,7 @@ def parsear_resposta(resposta_bruta: str) -> str:
 
 
 def preparar_dados_analise(dados_brutos: pd.DataFrame) -> pd.DataFrame:
-    """Transforma duelos pareados em formato flat (um registro por modelo por imagem)."""
+    # Transforma duelos pareados em formato flat (um registro por modelo por imagem).
     registros = []
     if dados_brutos.empty:
         return pd.DataFrame(columns=["modelo", "verdade", "predicao"])
@@ -62,7 +62,7 @@ def preparar_dados_analise(dados_brutos: pd.DataFrame) -> pd.DataFrame:
 
 
 def calcular_acuracia(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
-    """Acurácia por match exato, usando o pool normalizado."""
+    # Acurácia por match exato, usando o pool normalizado.
     if pool_normalizado.empty:
         return pd.DataFrame()
 
@@ -72,7 +72,7 @@ def calcular_acuracia(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
 
         lista_acuracia.append({
             "Modelo": nome_modelo,
-            #Calcular com o sklearn
+            # Calcular com o sklearn
             "Acurácia": accuracy_score(subconjunto["verdade"], subconjunto["predicao"]),
             "Total Amostras": len(subconjunto)
         })
@@ -85,7 +85,7 @@ def calcular_acuracia(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
 
 
 def calcular_metricas_globais(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
-    """Macro F1-Score via sklearn, forçando inclusão de todas as classes."""
+    # Macro F1-Score via sklearn, forçando inclusão de todas as classes.
     if pool_normalizado.empty:
         return pd.DataFrame()
 
@@ -115,7 +115,7 @@ def calcular_metricas_globais(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
 
 
 def calcular_matriz_confusao(pool_normalizado: pd.DataFrame, modelo_alvo: str):
-    """Retorna (matriz_confusao, labels) para um modelo específico."""
+    # Retorna (matriz_confusao, labels) para um modelo específico.
     if pool_normalizado.empty:
         return None, []
 
@@ -135,7 +135,7 @@ def calcular_matriz_confusao(pool_normalizado: pd.DataFrame, modelo_alvo: str):
 
 
 def calcular_metricas_binarias(pool_normalizado: pd.DataFrame, especie_alvo: str) -> pd.DataFrame:
-    """Métricas binárias (one-vs-rest) para uma espécie específica."""
+    # Métricas binárias (one-vs-rest) para uma espécie específica.
     especie_normalizada = normalizar_label(especie_alvo)
     lista_resultados = []
     
@@ -161,9 +161,9 @@ def calcular_metricas_binarias(pool_normalizado: pd.DataFrame, especie_alvo: str
         lista_resultados.append({
             "Modelo":       nome_modelo,
             "Taxa de Erro": round(1.0 - acuracia, 4),
+            "Precision":    round(precisao, 4),
             "F1-Score":     round(pontuacao_f1, 4),
             "Recall":       round(revocacao, 4),
-            "Precision":    round(precisao, 4),
             "Verdadeiros Positivos": int(verdadeiros_positivos),
             "Falsos Positivos": int(falsos_positivos),
             "Falsos Negativos": int(falsos_negativos)
@@ -172,8 +172,8 @@ def calcular_metricas_binarias(pool_normalizado: pd.DataFrame, especie_alvo: str
     return pd.DataFrame(lista_resultados).sort_values("F1-Score", ascending=False).reset_index(drop=True)
 
 
+# Bradley-Terry (1952) — P(i vence j) = forca_i / (forca_i + forca_j), estimado por MLE.
 def calcular_bradley_terry(dados_brutos: pd.DataFrame) -> pd.DataFrame:
-    """Bradley-Terry (1952) — P(i vence j) = força_i / (força_i + força_j), estimado por MLE."""
     if dados_brutos.empty:
         return pd.DataFrame()
 
@@ -236,67 +236,45 @@ def calcular_bradley_terry(dados_brutos: pd.DataFrame) -> pd.DataFrame:
     return tabela_bradley_terry
 
 
-def _calcular_elo_uma_vez(dados_brutos: pd.DataFrame, fator_ajuste: float) -> dict:
-    """Uma rodada de Elo sobre os duelos na ordem dada."""
+# Elo Rating — estimativa pontual direta, uma única passagem na ordem cronológica.
+def calcular_elo_rating(dados_brutos: pd.DataFrame, fator_k=32) -> pd.DataFrame:
+    if dados_brutos.empty:
+        return pd.DataFrame()
+
     lista_modelos = sorted(set(dados_brutos["model_a"].unique()) | set(dados_brutos["model_b"].unique()))
     pontuacoes = {modelo: 1000.0 for modelo in lista_modelos}
-    
+
     for _, linha in dados_brutos.iterrows():
         especie_verdadeira = normalizar_label(linha["species"])
         predicao_modelo_a = parsear_resposta(linha["model_response_a"])
         predicao_modelo_b = parsear_resposta(linha["model_response_b"])
-        
+
         acertou_modelo_a = (predicao_modelo_a == especie_verdadeira)
         acertou_modelo_b = (predicao_modelo_b == especie_verdadeira)
-        
+
         if not acertou_modelo_a and not acertou_modelo_b:
             continue
-        
+
         if acertou_modelo_a and not acertou_modelo_b:
             resultado_real_a = 1.0
         elif acertou_modelo_b and not acertou_modelo_a:
             resultado_real_a = 0.0
         else:
             resultado_real_a = 0.5
-        
+
         rating_modelo_a = pontuacoes[linha["model_a"]]
         rating_modelo_b = pontuacoes[linha["model_b"]]
-        
+
         resultado_esperado_a = 1 / (1 + 10 ** ((rating_modelo_b - rating_modelo_a) / 400))
-        
-        pontuacoes[linha["model_a"]] += fator_ajuste * (resultado_real_a - resultado_esperado_a)
-        pontuacoes[linha["model_b"]] += fator_ajuste * ((1 - resultado_real_a) - (1 - resultado_esperado_a))
-    
-    return pontuacoes
 
-
-def calcular_elo_rating(dados_brutos: pd.DataFrame, k_factor=32, n_bootstrap=100) -> pd.DataFrame:
-    """Elo com bootstrap — embaralha a ordem N vezes e tira a média (Zheng et al., 2023)."""
-    if dados_brutos.empty:
-        return pd.DataFrame()
-
-    lista_modelos = sorted(set(dados_brutos["model_a"].unique()) | set(dados_brutos["model_b"].unique()))
-    historico_ratings = {modelo: [] for modelo in lista_modelos}
-    
-    gerador_aleatorio = np.random.default_rng(seed=42)
-
-    for _ in range(n_bootstrap):
-        duelos_embaralhados = dados_brutos.sample(
-            frac=1,
-            random_state=gerador_aleatorio.integers(0, 2**31)
-        ).reset_index(drop=True)
-        
-        ratings_rodada = _calcular_elo_uma_vez(duelos_embaralhados, k_factor)
-        
-        for modelo in lista_modelos:
-            historico_ratings[modelo].append(ratings_rodada[modelo])
+        pontuacoes[linha["model_a"]] += fator_k * (resultado_real_a - resultado_esperado_a)
+        pontuacoes[linha["model_b"]] += fator_k * ((1 - resultado_real_a) - (1 - resultado_esperado_a))
 
     lista_elo = []
     for modelo in lista_modelos:
-        media_rating = np.mean(historico_ratings[modelo])
         lista_elo.append({
             "Modelo": modelo,
-            "Elo Rating": round(media_rating, 0)
+            "Elo Rating": round(pontuacoes[modelo], 0)
         })
 
     tabela_elo = pd.DataFrame(lista_elo).sort_values(
