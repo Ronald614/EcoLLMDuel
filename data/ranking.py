@@ -4,11 +4,18 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, precision_recall_fscore_support
+from data.nomes_especies import NOMES_COMUNS_ESPECIES
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
 SINONIMOS_AUSENCIA = {"null", "none", "absent", "vazio", "empty", "", "nan", "background", "nenhum"}
+
+# Conjunto de todas as classes válidas normalizadas (inclui background)
+ESPECIES_VALIDAS = {
+    chave.replace(" ", "").lower()
+    for chave in NOMES_COMUNS_ESPECIES.keys()
+}
 
 def normalizar_label(texto_bruto: str) -> str:
     # Ex: "Sciurus spadiceus" -> "sciurusspadiceus"
@@ -33,7 +40,13 @@ def parsear_resposta(resposta_bruta: str) -> str:
             dados = json.loads(resposta_bruta)
         
         predicao = dados.get("scientific_name") or dados.get("nome_cientifico") or "background"
-        return normalizar_label(str(predicao))
+        label = normalizar_label(str(predicao))
+
+        # Se não é uma classe conhecida, é invenção
+        if label not in ESPECIES_VALIDAS:
+            return "erro_ou_desconhecido"
+
+        return label
     except Exception:
         return "erro_formatacao"
 
@@ -111,7 +124,9 @@ def calcular_metricas_globais(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
             "Amostras":        len(subconjunto)
         })
 
-    return pd.DataFrame(lista_ranking).sort_values("Macro F1-Score", ascending=False).reset_index(drop=True)
+    tabela = pd.DataFrame(lista_ranking).sort_values("Macro F1-Score", ascending=False).reset_index(drop=True)
+    tabela.index += 1
+    return tabela
 
 
 def calcular_matriz_confusao(pool_normalizado: pd.DataFrame, modelo_alvo: str):
@@ -232,6 +247,7 @@ def calcular_bradley_terry(dados_brutos: pd.DataFrame) -> pd.DataFrame:
     tabela_bradley_terry = tabela_bradley_terry.sort_values(
         "BT Score (Logit)", ascending=False
     ).reset_index(drop=True)
+    tabela_bradley_terry.index += 1
 
     return tabela_bradley_terry
 
@@ -280,5 +296,6 @@ def calcular_elo_rating(dados_brutos: pd.DataFrame, fator_k=32) -> pd.DataFrame:
     tabela_elo = pd.DataFrame(lista_elo).sort_values(
         "Elo Rating", ascending=False
     ).reset_index(drop=True)
+    tabela_elo.index += 1
 
     return tabela_elo
