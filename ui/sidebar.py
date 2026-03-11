@@ -1,5 +1,6 @@
 import streamlit as st
 from html import escape as html_escape
+from data.nomes_especies import obter_nome_exibicao
 
 def renderizar_sidebar():
     with st.sidebar:
@@ -29,8 +30,11 @@ def renderizar_sidebar():
             st.divider()
             st.markdown("### Último Duelo")
             d = historico[0]
+            
+            nome_apresentacao = obter_nome_exibicao(d['especie'], incluir_cientifico=True)
+
             st.caption(
-                f"**Espécie:** {d['especie']}\n\n"
+                f"**Espécie:** {nome_apresentacao}\n\n"
                 f"A: `{d['modelo_a']}`\n\n"
                 f"B: `{d['modelo_b']}`"
             )

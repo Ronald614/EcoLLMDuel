@@ -8,13 +8,13 @@ Analise esta imagem de armadilha fotográfica e descreva detalhadamente o que é
 Formato de saída:
 Retorne a análise estritamente em formato JSON, sem qualquer texto adicional, contendo obrigatoriamente os seguintes campos:
 
-- "Deteccao": "Sim" se algum animal for detectado, caso contrário "Nenhuma".
-- "Nome Cientifico": Nome científico da espécie detectada sem abreviações ou "Nenhum".
-- "Nome Comum": Nome comum da espécie detectada ou "Nenhum".
-- "Numero de Individuos": Quantidade numérica de indivíduos detectados ou "Nenhum".
-- "Descricao da Imagem": Descrição detalhada dos elementos visíveis na imagem.
-- "Razao": Justificativa baseada nas características visuais observadas que levaram à conclusão.
+- "deteccao": "Sim" se algum animal for detectado, caso contrário "Nenhuma".
+- "nome_cientifico": Nome científico da espécie detectada sem abreviações ou "Nenhum".
+- "nome_comum": Nome comum da espécie detectada ou "Nenhum".
+- "numero_individuos": Quantidade numérica de indivíduos detectados ou "Nenhum".
+- "descricao_imagem": Descrição detalhada dos elementos visíveis na imagem.
+- "razao": Justificativa baseada nas características visuais observadas que levaram à conclusão.
 
 Condição de exceção:
-Se nenhum animal for detectado, retorne "Nenhum" em todos os campos, exceto em "Descricao da Imagem", que deve conter apenas a descrição visual da cena.
+Se nenhum animal for detectado, retorne 'Nenhum' em todos os campos exceto em "descricao_imagem" e "razao", que devem conter apenas a descrição visual da cena e a justificativa para essa classificação.
 """
