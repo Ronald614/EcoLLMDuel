@@ -13,7 +13,7 @@ st.title("📋 Modelos Disponíveis por API")
 # 1. OpenAI
 # ============================================================
 st.header("1️⃣ OpenAI")
-if "OPENAI_API_KEY" in st.secrets:
+if "OPENAI_API_KEY_2" in st.secrets:
     try:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         models = sorted(client.models.list(), key=lambda m: m.id)

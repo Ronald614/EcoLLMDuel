@@ -82,7 +82,7 @@ def render_acc(df_duelos):
             df_acc, width='stretch',
             column_config={
                 "Acurácia": st.column_config.ProgressColumn(
-                    format="%.1f%%",
+                    format="%.5f",
                     min_value=0,
                     max_value=1
                 )
@@ -185,8 +185,8 @@ def render_macro_f1(df_duelos):
         st.dataframe(
             df_macro, width='stretch',
             column_config={
-                "Macro F1-Score": st.column_config.ProgressColumn(format="%.2f", min_value=0, max_value=1),
-                "Acurácia Global": st.column_config.ProgressColumn(format="%.2f", min_value=0, max_value=1)
+                "Macro F1-Score": st.column_config.ProgressColumn(format="%.5f", min_value=0, max_value=1),
+                "Acurácia Global": st.column_config.ProgressColumn(format="%.5f", min_value=0, max_value=1)
             }
         )
     else:
