@@ -82,7 +82,7 @@ def render_acc(df_duelos):
             df_acc, width='stretch',
             column_config={
                 "Acurácia": st.column_config.ProgressColumn(
-                    format="%.5f",
+                    format="%.4f",
                     min_value=0,
                     max_value=1
                 )
@@ -122,10 +122,10 @@ def render_species_analysis(df_duelos):
                 df_especie,
                 width='stretch',
                 column_config={
-                    "F1-Score": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=1),
-                    "Taxa de Erro": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=1),
-                    "Precision": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=1),
-                    "Recall": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=1),
+                    "F1-Score": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
+                    "Taxa de Erro": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
+                    "Precision": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
+                    "Recall": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
                     "Verdadeiros Positivos": st.column_config.NumberColumn(format="%d"),
                     "Falsos Positivos": st.column_config.NumberColumn(format="%d"),
                     "Falsos Negativos": st.column_config.NumberColumn(format="%d")
@@ -185,8 +185,8 @@ def render_macro_f1(df_duelos):
         st.dataframe(
             df_macro, width='stretch',
             column_config={
-                "Macro F1-Score": st.column_config.ProgressColumn(format="%.5f", min_value=0, max_value=1),
-                "Acurácia Global": st.column_config.ProgressColumn(format="%.5f", min_value=0, max_value=1)
+                "Macro F1-Score": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
+                "Acurácia Global": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1)
             }
         )
     else:
