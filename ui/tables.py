@@ -58,13 +58,20 @@ def render_bt(df_duelos):
     st.write("A barra indica a força estimada de cada modelo. Quanto mais preenchida, maior a chance dessa IA vencer qualquer confronto.")
     if not df_duelos.empty:
         df_bt = calcular_bradley_terry(df_duelos)
+
+        bt_min = float(df_bt['BT Score (Logit)'].min()) if not df_bt.empty else 0
+        bt_max = float(df_bt['BT Score (Logit)'].max()) if not df_bt.empty else 1
+        if bt_min >= bt_max:
+            bt_min = bt_min - 1
+            bt_max = bt_max + 1
+
         st.dataframe(
             df_bt, width='stretch',
             column_config={
                 "BT Score (Logit)": st.column_config.ProgressColumn(
                     format="%.2f",
-                    min_value=0,
-                    max_value=max(df_bt['BT Score (Logit)']) if not df_bt.empty else 1000
+                    min_value=bt_min,
+                    max_value=bt_max
                 )
             }
         )

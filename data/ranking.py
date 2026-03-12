@@ -187,7 +187,8 @@ def calcular_metricas_binarias(pool_normalizado: pd.DataFrame, especie_alvo: str
     return pd.DataFrame(lista_resultados).sort_values("F1-Score", ascending=False).reset_index(drop=True)
 
 
-# Bradley-Terry (1952) — P(i vence j) = forca_i / (forca_i + forca_j), estimado por MLE.
+# Bradley-Terry (1952) — Baseado nos votos dos avaliadores humanos (metodologia Chatbot Arena).
+# P(i vence j) = forca_i / (forca_i + forca_j), estimado por MLE.
 def calcular_bradley_terry(dados_brutos: pd.DataFrame) -> pd.DataFrame:
     if dados_brutos.empty:
         return pd.DataFrame()
@@ -200,24 +201,16 @@ def calcular_bradley_terry(dados_brutos: pd.DataFrame) -> pd.DataFrame:
     vitorias = np.zeros((numero_modelos, numero_modelos))
     
     for _, linha in dados_brutos.iterrows():
-        especie_verdadeira = normalizar_label(linha["species"])
-        predicao_modelo_a = parsear_resposta(linha["model_response_a"])
-        predicao_modelo_b = parsear_resposta(linha["model_response_b"])
-        
-        acertou_modelo_a = (predicao_modelo_a == especie_verdadeira)
-        acertou_modelo_b = (predicao_modelo_b == especie_verdadeira)
-        
-        if not acertou_modelo_a and not acertou_modelo_b:
-            continue
-            
+        resultado = linha.get("result_code", "")
         indice_a = indice_modelo[linha["model_a"]]
         indice_b = indice_modelo[linha["model_b"]]
         
-        if acertou_modelo_a and not acertou_modelo_b:
+        if resultado == "A>B":
             vitorias[indice_a][indice_b] += 1
-        elif acertou_modelo_b and not acertou_modelo_a:
+        elif resultado == "A<B":
             vitorias[indice_b][indice_a] += 1
-        else:
+        elif resultado in ["A=B_GOOD", "!A!B"]:
+            # Empate técnico: Ambos bons OU Ambos ruins = 0.5 para cada
             vitorias[indice_a][indice_b] += 0.5
             vitorias[indice_b][indice_a] += 0.5
 
@@ -252,7 +245,7 @@ def calcular_bradley_terry(dados_brutos: pd.DataFrame) -> pd.DataFrame:
     return tabela_bradley_terry
 
 
-# Elo Rating — estimativa pontual direta, uma única passagem na ordem cronológica.
+# Elo Rating — Baseado nos votos dos avaliadores humanos (metodologia Chatbot Arena).
 def calcular_elo_rating(dados_brutos: pd.DataFrame, fator_k=32) -> pd.DataFrame:
     if dados_brutos.empty:
         return pd.DataFrame()
@@ -261,22 +254,17 @@ def calcular_elo_rating(dados_brutos: pd.DataFrame, fator_k=32) -> pd.DataFrame:
     pontuacoes = {modelo: 1000.0 for modelo in lista_modelos}
 
     for _, linha in dados_brutos.iterrows():
-        especie_verdadeira = normalizar_label(linha["species"])
-        predicao_modelo_a = parsear_resposta(linha["model_response_a"])
-        predicao_modelo_b = parsear_resposta(linha["model_response_b"])
+        resultado = linha.get("result_code", "")
 
-        acertou_modelo_a = (predicao_modelo_a == especie_verdadeira)
-        acertou_modelo_b = (predicao_modelo_b == especie_verdadeira)
-
-        if not acertou_modelo_a and not acertou_modelo_b:
-            continue
-
-        if acertou_modelo_a and not acertou_modelo_b:
+        if resultado == "A>B":
             resultado_real_a = 1.0
-        elif acertou_modelo_b and not acertou_modelo_a:
+        elif resultado == "A<B":
             resultado_real_a = 0.0
-        else:
+        elif resultado in ["A=B_GOOD", "!A!B"]:
             resultado_real_a = 0.5
+        else:
+            # Ignora apenas resultados nulos ou strings inválidas
+            continue
 
         rating_modelo_a = pontuacoes[linha["model_a"]]
         rating_modelo_b = pontuacoes[linha["model_b"]]

@@ -7,7 +7,7 @@ def init():
         modelos = {}
         
         # OpenAI (Tipo 1)
-        if "OPENAI_API_KEY" in st.secrets:
+        if "OPENAI_API_KEY" in st.secrets or "OPENAI_API_KEY_2" in st.secrets:
              modelos["gpt-4.1"] = 1
              modelos["gpt-4.1-mini"] = 1
              modelos["gpt-4.1-nano"] = 1
