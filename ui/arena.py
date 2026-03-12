@@ -28,8 +28,7 @@ def render_arena():
 
             **Opções de Voto:**
             * **Vitória (Modelo A ou B):** O modelo acertou a identificação da espécie e o outro errou. Se ambos acertarem, vence aquele que apresentou a melhor justificativa com base na imagem (características visuais, comportamento ou habitat).
-            * **Empate:** Ambos acertaram (ou erraram) a espécie com descrições de qualidade técnica equivalente.
-            * **Ambos Excelentes:** Ambos acertaram a espécie de forma exata e forneceram descrições ricas e úteis.
+            * **Ambos Bons:** Ambos acertaram a espécie de forma exata e forneceram descrições ricas e úteis, não sendo possível distinguir um vencedor.
             * **Ambos Ruins:** Ambos erraram a identificação grosseiramente ou inventaram animais que não estão na imagem. Nesse caso, o sistema pedirá que você descreva brevemente o que realmente há na foto.
             """)
 
@@ -170,7 +169,6 @@ def render_arena():
                                 [
                                     "Modelo A (Vitória)", 
                                     "Modelo B (Vitória)", 
-                                    "Empate (Neutro)", 
                                     "Ambos Bons (Excelência)", 
                                     "Ambos Ruins (Falha Mútua)"
                                 ],
@@ -213,7 +211,6 @@ def render_arena():
                         mapa_voto = {
                             "Modelo A (Vitória)": "A>B", 
                             "Modelo B (Vitória)": "A<B", 
-                            "Empate (Neutro)": "A=B", 
                             "Ambos Bons (Excelência)": "A=B_GOOD",
                             "Ambos Ruins (Falha Mútua)": "!A!B"
                         }

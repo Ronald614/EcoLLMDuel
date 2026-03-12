@@ -7,16 +7,69 @@ from config import TEMPERATURA_FIXA, LIMITE_TOKENS
 from ai.schemas import AnaliseBiologica
 
 @st.cache_resource
-def get_openai_client():
-    return OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-
-@st.cache_resource
 def get_nvidia_client():
     return OpenAI(
         api_key=st.secrets["NVIDIA_API_KEY"], 
         base_url="https://integrate.api.nvidia.com/v1"
     )
+
+
+def _get_openai_keys():
+    """Retorna lista de chaves OpenAI disponíveis."""
+    keys = []
+    if "OPENAI_API_KEY" in st.secrets:
+        keys.append(st.secrets["OPENAI_API_KEY"])
+    if "OPENAI_API_KEY_2" in st.secrets:
+        keys.append(st.secrets["OPENAI_API_KEY_2"])
+    return keys
+
+
+def _chamar_openai(nome_modelo, prompt, img_codificada, kwargs):
+    """Tenta chamar OpenAI com fallback entre chaves (mesmo padrão do Gemini)."""
+    keys = _get_openai_keys()
+    if not keys:
+        raise Exception("Nenhuma chave OpenAI configurada.")
+
+    last_error = None
+    for i, api_key in enumerate(keys):
+        try:
+            client = OpenAI(api_key=api_key)
+            mensagens = [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_codificada}"}}
+                ]
+            }]
+
+            try:
+                # Structured Outputs (SDK recente)
+                r = client.beta.chat.completions.parse(
+                    model=nome_modelo,
+                    messages=mensagens,
+                    response_format=AnaliseBiologica,
+                    **kwargs
+                )
+                return r.choices[0].message.parsed.model_dump_json()
+
+            except Exception as e_struct:
+                print(f"Erro ao usar Structured Outputs: {e_struct}. Tentando fallback JSON Mode.")
+                r = client.chat.completions.create(
+                    model=nome_modelo,
+                    messages=mensagens,
+                    response_format={"type": "json_object"},
+                    **kwargs
+                )
+                return r.choices[0].message.content
+
+        except Exception as e:
+            print(f"[OPENAI] Chave {i+1} falhou: {e}")
+            last_error = e
+            if i < len(keys) - 1:
+                print("Tentando próxima chave...")
+                continue
+
+    raise last_error
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -30,7 +83,6 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
             resposta_modelo = ""
 
             if tipo == 1:
-                client = get_openai_client()
                 # Modelos novos (gpt-5*) usam max_completion_tokens
                 token_param = "max_completion_tokens" if "gpt-5" in nome_modelo else "max_tokens"
                 
@@ -39,39 +91,7 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                 if not ("gpt-5" in nome_modelo or "o1" in nome_modelo):
                     kwargs["temperature"] = TEMPERATURA_FIXA
 
-                try:
-                    # Structured Outputs (SDK recente)
-                    r = client.beta.chat.completions.parse(
-                        model=nome_modelo,
-                        messages=[{
-                            "role":"user",
-                            "content":[
-                                {"type":"text","text":prompt},
-                                {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{img_codificada}"}}
-                            ]
-                        }],
-                        response_format=AnaliseBiologica,
-                        **kwargs
-                    )
-                    # Manter compatibilidade
-                    resposta_modelo = r.choices[0].message.parsed.model_dump_json()
-                    
-                except Exception as e_struct:
-                    print(f"Erro ao usar Structured Outputs: {e_struct}. Tentando fallback JSON Mode.")
-                    # Fallback para JSON Mode
-                    r = client.chat.completions.create(
-                        model=nome_modelo,
-                        messages=[{
-                            "role":"user",
-                            "content":[
-                                {"type":"text","text":prompt},
-                                {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{img_codificada}"}}
-                            ]
-                        }],
-                        response_format={"type": "json_object"},
-                        **kwargs
-                    )
-                    resposta_modelo = r.choices[0].message.content
+                resposta_modelo = _chamar_openai(nome_modelo, prompt, img_codificada, kwargs)
 
             elif tipo == 2:
                 keys = []
