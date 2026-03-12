@@ -85,13 +85,12 @@ def calcular_acuracia(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
 
         lista_acuracia.append({
             "Modelo": nome_modelo,
-            # Calcular com o sklearn
-            "Acurácia": accuracy_score(subconjunto["verdade"], subconjunto["predicao"]),
+            "Acurácia (%)": round(accuracy_score(subconjunto["verdade"], subconjunto["predicao"]) * 100, 1),
             "Total Amostras": len(subconjunto)
         })
 
     tabela_acuracia = pd.DataFrame(lista_acuracia).sort_values(
-        by="Acurácia", ascending=False
+        by="Acurácia (%)", ascending=False
     ).reset_index(drop=True)
     tabela_acuracia.index += 1
     return tabela_acuracia
@@ -117,11 +116,11 @@ def calcular_metricas_globais(pool_normalizado: pd.DataFrame) -> pd.DataFrame:
         )
         
         lista_ranking.append({
-            "Modelo":          nome_modelo,
-            "Macro F1-Score":  round(relatorio["macro avg"]["f1-score"], 4),
-            "Acurácia Global": round(relatorio.get("accuracy", 0.0), 4),
-            "Recall Médio":    round(relatorio["macro avg"]["recall"], 4),
-            "Amostras":        len(subconjunto)
+            "Modelo":             nome_modelo,
+            "Macro F1-Score":     round(relatorio["macro avg"]["f1-score"], 3),
+            "Acurácia Global (%)": round(relatorio.get("accuracy", 0.0) * 100, 1),
+            "Recall Médio":       round(relatorio["macro avg"]["recall"], 3),
+            "Amostras":           len(subconjunto)
         })
 
     tabela = pd.DataFrame(lista_ranking).sort_values("Macro F1-Score", ascending=False).reset_index(drop=True)
@@ -174,11 +173,11 @@ def calcular_metricas_binarias(pool_normalizado: pd.DataFrame, especie_alvo: str
         acuracia = accuracy_score(rotulo_verdadeiro, rotulo_predito)
         
         lista_resultados.append({
-            "Modelo":       nome_modelo,
-            "Taxa de Erro": round(1.0 - acuracia, 4),
-            "Precision":    round(precisao, 4),
-            "F1-Score":     round(pontuacao_f1, 4),
-            "Recall":       round(revocacao, 4),
+            "Modelo":           nome_modelo,
+            "Taxa de Erro (%)": round((1.0 - acuracia) * 100, 1),
+            "Precision":        round(precisao, 3),
+            "F1-Score":         round(pontuacao_f1, 3),
+            "Recall":           round(revocacao, 3),
             "Verdadeiros Positivos": int(verdadeiros_positivos),
             "Falsos Positivos": int(falsos_positivos),
             "Falsos Negativos": int(falsos_negativos)
@@ -278,7 +277,7 @@ def calcular_elo_rating(dados_brutos: pd.DataFrame, fator_k=32) -> pd.DataFrame:
     for modelo in lista_modelos:
         lista_elo.append({
             "Modelo": modelo,
-            "Elo Rating": round(pontuacoes[modelo], 0)
+            "Elo Rating": int(round(pontuacoes[modelo]))
         })
 
     tabela_elo = pd.DataFrame(lista_elo).sort_values(

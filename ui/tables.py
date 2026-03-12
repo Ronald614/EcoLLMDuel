@@ -48,7 +48,7 @@ def render_elo(df_duelos):
     st.write("Funciona como o ranking do xadrez: a IA ganha pontos ao vencer e perde ao ser derrotada. Vencer uma IA mais forte vale mais pontos.")
     if not df_duelos.empty:
         df_elo = calcular_elo_rating(df_duelos)
-        st.dataframe(df_elo, width='stretch', column_config={"Elo Rating": st.column_config.NumberColumn(format="%.0f")})
+        st.dataframe(df_elo, width='stretch', column_config={"Elo Rating": st.column_config.NumberColumn(format="%d")})
     else:
         st.info("Sem dados para Elo.")
 
@@ -88,10 +88,10 @@ def render_acc(df_duelos):
         st.dataframe(
             df_acc, width='stretch',
             column_config={
-                "Acurácia": st.column_config.ProgressColumn(
-                    format="%.4f",
+                "Acurácia (%)": st.column_config.ProgressColumn(
+                    format="%.1f%%",
                     min_value=0,
-                    max_value=1
+                    max_value=100
                 )
             }
         )
@@ -129,10 +129,10 @@ def render_species_analysis(df_duelos):
                 df_especie,
                 width='stretch',
                 column_config={
-                    "F1-Score": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
-                    "Taxa de Erro": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
-                    "Precision": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
-                    "Recall": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
+                    "F1-Score": st.column_config.ProgressColumn(format="%.3f", min_value=0, max_value=1),
+                    "Taxa de Erro (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
+                    "Precision": st.column_config.ProgressColumn(format="%.3f", min_value=0, max_value=1),
+                    "Recall": st.column_config.ProgressColumn(format="%.3f", min_value=0, max_value=1),
                     "Verdadeiros Positivos": st.column_config.NumberColumn(format="%d"),
                     "Falsos Positivos": st.column_config.NumberColumn(format="%d"),
                     "Falsos Negativos": st.column_config.NumberColumn(format="%d")
@@ -192,8 +192,8 @@ def render_macro_f1(df_duelos):
         st.dataframe(
             df_macro, width='stretch',
             column_config={
-                "Macro F1-Score": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1),
-                "Acurácia Global": st.column_config.ProgressColumn(format="%.4f", min_value=0, max_value=1)
+                "Macro F1-Score": st.column_config.ProgressColumn(format="%.3f", min_value=0, max_value=1),
+                "Acurácia Global (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100)
             }
         )
     else:
