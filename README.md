@@ -156,53 +156,6 @@ A aplicação abrirá em: **http://localhost:8501**
 4. **Voto**: Compare as respostas e escolha o melhor modelo
 5. **Leaderboard**: Veja o ranking dos modelos em tempo real
 
----
-
-## 📁 Estrutura do Projeto
-
-\`\`\`
-EcoLLMDuel/
-├── app.py                 # Ponto de entrada principal
-├── streamlit_app.py       # Wrapper do Streamlit
-├── config.py              # Configurações globais
-├── requirements.txt       # Dependências Python
-├── README.md              # Este arquivo
-├── .gitignore             # Padrões de git
-├── LICENSE                # Licença do projeto
-│
-├── ai/
-│   ├── __init__.py
-│   ├── models.py         # Integração com APIs de IA
-│   └── prompt.py         # Template do prompt
-│
-├── data/
-│   ├── __init__.py
-│   ├── database.py       # Conexão PostgreSQL e CRUD
-│   ├── drive.py          # Carregamento de imagens
-│   └── ranking.py        # Algoritmos de ranking
-│
-├── ui/
-│   ├── __init__.py
-│   ├── arena.py          # Interface da Arena
-│   ├── cadastro.py       # Formulário de cadastro
-│   ├── ranking.py        # Visualização do Leaderboard
-│   └── sidebar.py        # Barra lateral
-│
-├── utils/
-│   ├── __init__.py
-│   ├── image.py          # Processamento de imagens
-│   ├── json_utils.py     # Parsing de JSON
-│   └── session.py        # Gerenciamento de sessão
-│
-├── .streamlit/
-│   └── secrets.toml       # (NÃO commitar!) Variáveis secretas
-│
-├── env/                   # (NÃO commitar!) Ambiente virtual
-└── mamiraua/              # (NÃO commitar!) Dataset de imagens
-\`\`\`
-
----
-
 ## 💾 Tecnologias
 
 | Componente | Tecnologia |
@@ -215,17 +168,7 @@ EcoLLMDuel/
 | **Visualização** | Altair, Pandas, Matplotlib |
 | **Ranking** | Elo Rating, Bradley-Terry Model |
 
----
 
-## 📊 Algoritmos de Ranking
-
-### Elo Rating
-Sistema clássico de rating baseado em pontos. Cada vitória/derrota ajusta a pontuação dinamicamente.
-
-### Bradley-Terry Model
-Modelo probabilístico mais sofisticado que considera a probabilidade de uma IA ser melhor que outra.
-
----
 
 ## 🛠️ Desenvolvimento
 
@@ -291,7 +234,7 @@ O projeto está pronto para depoy no **Streamlit Community Cloud**.
 4.  Atualize a `redirect_uri` no secrets do Cloud para a URL final do app (ex: `https://seu-app.streamlit.app/oauth2callback`).
 5.  Adicione essa mesma URL no Google Cloud Console (OAuth).
 
-Para um guia detalhado, consulte o arquivo [deployment_plan.md](deployment_plan.md).
+Para configurações de deploy, siga a documentação do provedor de hospedagem desejado.
 
 ---
 

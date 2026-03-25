@@ -17,7 +17,7 @@ def init():
              modelos["gpt-5-chat-latest"] = 1
              modelos["gpt-5-mini"] = 1
              modelos["gpt-5-nano"] = 1
-             # modelos["gpt-5-search-api"] = 1  # API vision indisponível (Erro 500)
+            #modelos["gpt-5-search-api"] = 1  # API vision indisponível (Erro 500)
              modelos["gpt-5.1"] = 1
              modelos["gpt-5.1-chat-latest"] = 1
              modelos["gpt-5.2"] = 1
