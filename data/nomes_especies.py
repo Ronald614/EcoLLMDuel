@@ -1,14 +1,14 @@
 # Dicionário de mapeamento: Nome da Pasta (Científico) -> Nome Comum
 NOMES_COMUNS_ESPECIES = {
-    "Crax globulosa": "Mutum-fava",
-    "Didelphis albiventris": "Gambá-de-orelha-branca",
+    "Crax globulosa": "Mutum-de-fava",
+    "Didelphis albiventris": "Mucura",
     "Leopardus wiedii": "Gato-maracajá",
     "Panthera onca": "Onça-pintada",
     "Pauxi tuberosa": "Mutum-cavalo",
     "Pauxituberosa": "Mutum-cavalo",
-    "Sapajus macrocephalus": "Macaco-prego-de-cabeça-grande",
-    "Sciurus spadiceus": "Esquilo-vermelho-da-Amazônia",
-    "Tupinambis teguixin": "Teiú-branco",
+    "Sapajus macrocephalus": "Macaco-prego",
+    "Sciurus spadiceus": "Quatipuru",
+    "Tupinambis teguixin": "Jacuaru",
     "background": "Esta foto não contém nenhum animal !"
 }
 

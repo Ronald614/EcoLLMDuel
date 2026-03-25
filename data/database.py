@@ -145,7 +145,7 @@ def carregar_dados_duelos():
         print("[ERRO BD] Sem conexão para carregar duelos.")
         return pd.DataFrame()
     try:
-        query = "SELECT model_a, model_b, result_code, species, model_response_a, model_response_b FROM evaluations"
+        query = "SELECT model_a, model_b, result_code, species, model_response_a, model_response_b, image_id FROM evaluations"
         df = conn.query(query, ttl=0, show_spinner=False)
         return df
     except Exception as e:

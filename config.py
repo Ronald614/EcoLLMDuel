@@ -1,5 +1,4 @@
 # --- CONSTANTES ---
-from ai.prompt import PROMPT_TEMPLATE
 TEMPERATURA_FIXA = 0.5
 LIMITE_TOKENS = 16384
 

@@ -2,7 +2,6 @@ import streamlit as st
 from data.ranking import (
     calcular_elo_rating, 
     calcular_bradley_terry, 
-    calcular_acuracia,
     preparar_dados_analise,
     calcular_metricas_globais,
     calcular_metricas_binarias,
@@ -10,10 +9,11 @@ from data.ranking import (
 )
 import plotly.express as px
 from data.nomes_especies import NOMES_COMUNS_ESPECIES
-
+from ai.prompt import PROMPT_TEMPLATE, PROMPT_TEMPLATE_2
 
 def _obter_nome_exibicao(especie_raw: str) -> str:
-    """Retorna 'Nome Comum (Nome Científico)' para exibição."""
+    # Converte o código científico cru em uma string legível 'Nome Comum (Nome Científico)' para uso visual na interface gráfica.
+    # Efetua busca iterativa pelo mapeamento do catálogo oficial.
     nome_comum = especie_raw
     cientifico_formatado = especie_raw
 
@@ -28,7 +28,7 @@ def _obter_nome_exibicao(especie_raw: str) -> str:
     return especie_raw
 
 
-def render_global_stats(df_duelos):
+def renderizar_estatisticas_globais(df_duelos):
     st.header("Visão Geral dos Duelos")
     st.write("Resumo de quantas avaliações já foram realizadas e quantos modelos de IA estão competindo.")
     if not df_duelos.empty:
@@ -43,7 +43,7 @@ def render_global_stats(df_duelos):
         st.info("Ainda não temos dados o suficiente. Participe dos duelos para gerar relatórios!")
 
 
-def render_elo(df_duelos):
+def renderizar_elo(df_duelos):
     st.subheader("Sistema de Pontuação (Elo Rating)")
     st.write("Funciona como o ranking do xadrez: a IA ganha pontos ao vencer e perde ao ser derrotada. Vencer uma IA mais forte vale mais pontos.")
     if not df_duelos.empty:
@@ -53,7 +53,7 @@ def render_elo(df_duelos):
         st.info("Sem dados para Elo.")
 
 
-def render_bt(df_duelos):
+def renderizar_bt(df_duelos):
     st.subheader("Chances de Vitória (Modelo Bradley-Terry)")
     st.write("A barra indica a força estimada de cada modelo. Quanto mais preenchida, maior a chance dessa IA vencer qualquer confronto.")
     if not df_duelos.empty:
@@ -79,27 +79,7 @@ def render_bt(df_duelos):
         st.info("Sem dados para Bradley-Terry.")
 
 
-def render_acc(df_duelos):
-    st.subheader("Taxa de Acerto Simples")
-    st.write("Avalia cada IA individualmente. Conta como 'Acerto' quando o modelo identificou o animal correto ou acertou ao dizer que não havia animal na foto.")
-    if not df_duelos.empty:
-        df_flat = preparar_dados_analise(df_duelos)
-        df_acc = calcular_acuracia(df_flat)
-        st.dataframe(
-            df_acc, width='stretch',
-            column_config={
-                "Acurácia (%)": st.column_config.ProgressColumn(
-                    format="%.1f%%",
-                    min_value=0,
-                    max_value=100
-                )
-            }
-        )
-    else:
-        st.info("Sem dados para Acurácia.")
-
-
-def render_species_analysis(df_duelos):
+def renderizar_analise_especies(df_duelos):
     st.divider()
     st.subheader("Análise por Espécie")
     st.write("Selecione um animal abaixo para ver o desempenho de cada IA ao identificá-lo.")
@@ -129,10 +109,11 @@ def render_species_analysis(df_duelos):
                 df_especie,
                 width='stretch',
                 column_config={
+                    "Acurácia (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
                     "F1-Score": st.column_config.ProgressColumn(format="%.3f", min_value=0, max_value=1),
-                    "Taxa de Erro (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
-                    "Precision": st.column_config.ProgressColumn(format="%.3f", min_value=0, max_value=1),
                     "Recall": st.column_config.ProgressColumn(format="%.3f", min_value=0, max_value=1),
+                    "Precision": st.column_config.ProgressColumn(format="%.3f", min_value=0, max_value=1),
+                    "Taxa de Erro (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
                     "Verdadeiros Positivos": st.column_config.NumberColumn(format="%d"),
                     "Falsos Positivos": st.column_config.NumberColumn(format="%d"),
                     "Falsos Negativos": st.column_config.NumberColumn(format="%d")
@@ -178,11 +159,13 @@ def render_species_analysis(df_duelos):
                 st.caption("Verde = Acertou | Vermelho = Alucinou (disse que era este animal, mas não era) | Amarelo = Omitiu (o animal estava na foto, mas a IA não o reconheceu)")
 
 
-def render_macro_f1(df_duelos):
+def renderizar_macro_f1(df_duelos):
     st.subheader("Ranking de Precisão Justa (Macro F1-Score)")
     st.markdown("""
     Algumas espécies aparecem com muito mais frequência do que outras no dataset. Uma IA poderia inflar sua pontuação acertando apenas os animais comuns e errando os raros.  
     A **Precisão Justa** corrige isso: ela dá peso igual a todas as espécies, penalizando modelos que falham com animais raros. O primeiro lugar aqui é o modelo mais equilibrado.
+    
+    *Nota sobre as **Amostras**: O cálculo inteiro é feito apenas nas espécies em que aquele modelo já esbarrou na avaliação. Se o modelo nunca sorteou a imagem de um macaco para testar, a nota final dele ignorará a existência de macacos no F1-Score e na Acurácia. A nota é 100% calibrada no universo exato de fotos que ele efetivamente tentou a sorte!*
     """)
 
     if not df_duelos.empty:
@@ -200,7 +183,7 @@ def render_macro_f1(df_duelos):
         st.info("Sem dados para Macro F1.")
 
 
-def render_matriz_confusao_global(df_duelos):
+def renderizar_matriz_confusao_global(df_duelos):
     st.divider()
     st.subheader("Mapa de Confusões da IA")
     st.write("Selecione um modelo abaixo. A diagonal mostra os acertos (quando a IA identificou o animal correto). Quadrados azul-escuro fora da diagonal indicam confusões recorrentes entre duas espécies.")
@@ -236,3 +219,90 @@ def render_matriz_confusao_global(df_duelos):
             
             with col_viz:
                 st.plotly_chart(fig, key=f"heatmap_{modelo_selecionado}")
+
+def renderizar_painel_rankings(df_duelos):
+    st.subheader("Filtros de Estatísticas & Ranking")
+    
+    # Inicializa estado se não existir
+    if 'filtro_prompt_ranking' not in st.session_state:
+        st.session_state['filtro_prompt_ranking'] = "Todos os Prompts"
+    
+    # --- FILTRO POR PROMPT ---
+    prompt_selecionado = "Todos os Prompts"
+    texto_prompt = "Exibindo resultados agregados de todos os prompts utilizados."
+
+    opcoes_nomes = [
+        "Todos os Prompts",
+        "Prompt 1 (Padrão s/ Espécies)",
+        "Prompt 2 (C/ Lista de Espécies)"
+    ]
+    nome_para_texto = {
+        "Prompt 1 (Padrão s/ Espécies)": PROMPT_TEMPLATE.strip(),
+        "Prompt 2 (C/ Lista de Espécies)": PROMPT_TEMPLATE_2.strip()
+    }
+
+    if not df_duelos.empty:
+        # Se a base de dados for antiga e não tiver a coluna, preenchemos com o prompt clássico
+        if "prompt" not in df_duelos.columns:
+            df_duelos["prompt"] = PROMPT_TEMPLATE.strip()
+
+        prompts_unicos = df_duelos["prompt"].dropna().unique().tolist()
+        
+        for p in prompts_unicos:
+            p_limpo = str(p).strip()
+            
+            if p_limpo == PROMPT_TEMPLATE.strip() or p_limpo == PROMPT_TEMPLATE_2.strip():
+                continue
+                
+            nome_botao = f"Prompt Personalizado ({p_limpo[:30]}...)"
+            
+            if nome_botao not in opcoes_nomes:
+                opcoes_nomes.append(nome_botao)
+                nome_para_texto[nome_botao] = p_limpo
+
+    idx_selecionado = 0
+    if st.session_state.get('filtro_prompt_ranking') in opcoes_nomes:
+        idx_selecionado = opcoes_nomes.index(st.session_state['filtro_prompt_ranking'])
+
+    prompt_selecionado = st.selectbox(
+        "Selecione o Prompt Analisado:", 
+        opcoes_nomes,
+        index=idx_selecionado,
+        key='filtro_prompt_ranking'
+    )
+
+    if prompt_selecionado != "Todos os Prompts":
+        texto_prompt = nome_para_texto.get(prompt_selecionado, texto_prompt)
+        # Filtra o dataframe usando strip para evitar incompatibilidades de quebra de linha
+        df_duelos = df_duelos[df_duelos["prompt"].astype(str).str.strip() == texto_prompt]
+            
+    with st.expander("Ver texto do Prompt considerado nestes resultados"):
+        if prompt_selecionado == "Todos os Prompts":
+             st.info(texto_prompt)
+        else:
+             st.code(texto_prompt, language="markdown")
+             
+    st.divider()
+
+    # Só exibimos as abas do dashboard abaixo
+    renderizar_estatisticas_globais(df_duelos)
+
+    tab_elo, tab_bt, tab_binario, tab_geral = st.tabs([
+        "Elo Rating", 
+        "Bradley-Terry", 
+        "Métricas por Espécies (Binário)",
+        "Métricas no Geral (por Classes)",
+    ])
+
+    with tab_elo:
+        renderizar_elo(df_duelos)
+
+    with tab_bt:
+        renderizar_bt(df_duelos)
+
+    with tab_binario:
+        renderizar_analise_especies(df_duelos)
+
+    with tab_geral:
+        renderizar_macro_f1(df_duelos)
+        renderizar_matriz_confusao_global(df_duelos)

@@ -2,7 +2,7 @@ import streamlit as st
 import json
 import random
 import time
-from ai.prompt import PROMPT_TEMPLATE
+from ai.prompt import PROMPT_TEMPLATE, PROMPT_TEMPLATE_2
 from utils.image import codificar_imagem
 from utils.json_utils import decodificar_json
 from ai.models import executar_analise
@@ -71,7 +71,7 @@ def render_arena():
             enc = codificar_imagem(st.session_state.imagem)
             
             # Blind test: não informar espécie
-            prompt_blind = PROMPT_TEMPLATE 
+            prompt_blind = random.choice([PROMPT_TEMPLATE, PROMPT_TEMPLATE_2])
             st.session_state.prompt_usado = prompt_blind
             
             sucesso_a, resposta_a, tempo_a = executar_analise(
