@@ -6,6 +6,18 @@ import google.generativeai as genai
 from config import TEMPERATURA_FIXA, LIMITE_TOKENS
 from ai.schemas import AnaliseBiologica
 
+
+class AnaliseAPIError(Exception):
+    """Excecao para falhas de API que NAO devem ser cacheadas pelo Streamlit.
+    
+    Quando @st.cache_data decora uma funcao, valores retornados normalmente
+    sao armazenados no cache. Levantar uma excecao impede esse comportamento,
+    garantindo que a proxima chamada tente a API novamente.
+    """
+    def __init__(self, mensagem: str, tempo_gasto: float):
+        super().__init__(mensagem)
+        self.tempo_gasto = tempo_gasto
+
 @st.cache_resource
 def get_nvidia_client():
     return OpenAI(
@@ -172,12 +184,17 @@ def executar_analise_cached(nome_modelo: str, prompt: str, img_hash: str, img_co
                 continue
 
             print(f"[LOG] Erro fatal no modelo {nome_modelo}: {erro_msg}")
-            return False, None, time.time() - start
+            raise AnaliseAPIError(erro_msg, time.time() - start)
 
-    print(f"[LOG] Falha total no modelo {nome_modelo} após {max_retries} tentativas.")
-    return False, None, time.time() - start
+    print(f"[LOG] Falha total no modelo {nome_modelo} apos {max_retries} tentativas.")
+    raise AnaliseAPIError(f"Falha apos {max_retries} tentativas", time.time() - start)
 
 def executar_analise(nome_modelo, prompt, imagem, img_codificada):
     tipo = st.session_state.modelos_disponiveis.get(nome_modelo)
     img_hash = hashlib.sha256(img_codificada.encode()).hexdigest()
-    return executar_analise_cached(nome_modelo, prompt, img_hash, img_codificada, tipo)
+    try:
+        return executar_analise_cached(nome_modelo, prompt, img_hash, img_codificada, tipo)
+    except AnaliseAPIError as e:
+        # Captura a excecao fora do cache para que falhas nao sejam persistidas.
+        # Retorna a tupla de falha esperada pela interface.
+        return False, None, e.tempo_gasto
