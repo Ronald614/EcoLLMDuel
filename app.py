@@ -60,8 +60,18 @@ def main():
                     st.error("Falha na autenticação. Tente novamente.")
             st.stop()
         
-        with st.spinner("Verificando cadastro..."):
-            perfil_existente = verificar_perfil(email)
+        try:
+            with st.spinner("Verificando cadastro..."):
+                perfil_existente = verificar_perfil(email)
+        except ConnectionError:
+            st.title("Erro de Conexao")
+            st.error(
+                "Nao foi possivel verificar seu cadastro porque o banco de dados "
+                "esta indisponivel. Por favor, tente novamente em alguns instantes."
+            )
+            if st.button("Tentar Novamente", type="primary", key="retry_db"):
+                st.rerun()
+            st.stop()
 
         if perfil_existente:
             st.session_state.detalhes_usuario = perfil_existente

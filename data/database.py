@@ -13,10 +13,12 @@ def _get_conn():
         return None
 
 def verificar_perfil(email):
+    """Retorna dict do perfil se existir, None se nao existir.
+    Levanta ConnectionError se o banco estiver indisponivel."""
     email_tratado = email.lower().strip()
     conn = _get_conn()
     if not conn:
-        return None
+        raise ConnectionError("Banco de dados indisponivel.")
     try:
         df = conn.query(
             "SELECT * FROM user_profiles WHERE email = :email",
@@ -30,7 +32,7 @@ def verificar_perfil(email):
             return None
     except Exception as e:
         print(f"[ERRO PERFIL] {e}")
-        return None
+        raise ConnectionError(f"Falha ao consultar perfil: {e}")
 
 def salvar_perfil_novo(dados):
     conn = _get_conn()
